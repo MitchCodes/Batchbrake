@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Reactive;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -34,6 +36,10 @@ namespace Batchbrake.ViewModels
         private int _verbosity;
         private bool _updateCheckDisabled;
         private bool _sendFileDone;
+        private string _customPresetFile;
+        private ObservableCollection<string> _customPresetFiles;
+        private string? _selectedPresetFile;
+        private string _newPresetFilePath = "";
         private ObservableCollection<string> _availablePresets;
 
         public HandBrakeSettingsViewModel(HandBrakeSettings settings, IFilePickerService filePickerService, Window window)
@@ -60,6 +66,16 @@ namespace Batchbrake.ViewModels
             Verbosity = settings.Verbosity;
             UpdateCheckDisabled = settings.UpdateCheckEnabled;
             SendFileDone = settings.SendFileDone;
+            CustomPresetFile = settings.CustomPresetFile;
+            
+            // Initialize custom preset files collection
+            _customPresetFiles = new ObservableCollection<string>(settings.CustomPresetFiles ?? new List<string>());
+            
+            // Migrate legacy single file to collection if needed
+            if (!string.IsNullOrWhiteSpace(settings.CustomPresetFile) && !_customPresetFiles.Contains(settings.CustomPresetFile))
+            {
+                _customPresetFiles.Add(settings.CustomPresetFile);
+            }
 
             // Initialize available presets
             _availablePresets = new ObservableCollection<string>();
@@ -67,6 +83,10 @@ namespace Batchbrake.ViewModels
 
             // Initialize commands
             BrowseHandBrakeCLICommand = ReactiveCommand.CreateFromTask(BrowseHandBrakeCLI);
+            BrowseCustomPresetFileCommand = ReactiveCommand.CreateFromTask(BrowseCustomPresetFile);
+            AddPresetFileCommand = ReactiveCommand.Create(AddPresetFile);
+            RemovePresetFileCommand = ReactiveCommand.Create<string>(RemovePresetFile);
+            ClearPresetFilesCommand = ReactiveCommand.Create(ClearPresetFiles);
             SaveCommand = ReactiveCommand.Create(Save);
             CancelCommand = ReactiveCommand.Create(Cancel);
             ResetToDefaultsCommand = ReactiveCommand.Create(ResetToDefaults);
@@ -156,6 +176,12 @@ namespace Batchbrake.ViewModels
             set => this.RaiseAndSetIfChanged(ref _additionalArguments, value);
         }
 
+        public string CustomPresetFile
+        {
+            get => _customPresetFile;
+            set => this.RaiseAndSetIfChanged(ref _customPresetFile, value);
+        }
+
         public int Verbosity
         {
             get => _verbosity;
@@ -180,7 +206,29 @@ namespace Batchbrake.ViewModels
             set => this.RaiseAndSetIfChanged(ref _availablePresets, value);
         }
 
+        public ObservableCollection<string> CustomPresetFiles
+        {
+            get => _customPresetFiles;
+            set => this.RaiseAndSetIfChanged(ref _customPresetFiles, value);
+        }
+
+        public string? SelectedPresetFile
+        {
+            get => _selectedPresetFile;
+            set => this.RaiseAndSetIfChanged(ref _selectedPresetFile, value);
+        }
+
+        public string NewPresetFilePath
+        {
+            get => _newPresetFilePath;
+            set => this.RaiseAndSetIfChanged(ref _newPresetFilePath, value);
+        }
+
         public ReactiveCommand<Unit, Unit> BrowseHandBrakeCLICommand { get; }
+        public ReactiveCommand<Unit, Unit> BrowseCustomPresetFileCommand { get; }
+        public ReactiveCommand<Unit, Unit> AddPresetFileCommand { get; }
+        public ReactiveCommand<string, Unit> RemovePresetFileCommand { get; }
+        public ReactiveCommand<Unit, Unit> ClearPresetFilesCommand { get; }
         public ReactiveCommand<Unit, Unit> SaveCommand { get; }
         public ReactiveCommand<Unit, Unit> CancelCommand { get; }
         public ReactiveCommand<Unit, Unit> ResetToDefaultsCommand { get; }
@@ -189,7 +237,13 @@ namespace Batchbrake.ViewModels
         {
             try
             {
-                var handbrakeWrapper = new HandbrakeCLIWrapper(_handBrakeCLIPath);
+                var settings = new HandBrakeSettings 
+                { 
+                    HandBrakeCLIPath = _handBrakeCLIPath,
+                    CustomPresetFile = _customPresetFile,
+                    CustomPresetFiles = new List<string>(_customPresetFiles)
+                };
+                var handbrakeWrapper = new HandbrakeCLIWrapper(settings);
                 var presets = await handbrakeWrapper.GetAvailablePresetsAsync();
                 
                 AvailablePresets.Clear();
@@ -250,6 +304,66 @@ namespace Batchbrake.ViewModels
             }
         }
 
+        private async Task BrowseCustomPresetFile()
+        {
+            var options = new FilePickerOpenOptions
+            {
+                Title = "Select HandBrake Preset File",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("JSON Files")
+                    {
+                        Patterns = new[] { "*.json" }
+                    },
+                    new FilePickerFileType("All Files")
+                    {
+                        Patterns = new[] { "*" }
+                    }
+                }
+            };
+
+            var result = await _filePickerService.OpenFilePickerAsync(options);
+            if (result != null && result.Count > 0)
+            {
+                NewPresetFilePath = result[0].Path.LocalPath;
+            }
+        }
+
+        private void AddPresetFile()
+        {
+            if (!string.IsNullOrWhiteSpace(NewPresetFilePath))
+            {
+                if (!CustomPresetFiles.Contains(NewPresetFilePath))
+                {
+                    CustomPresetFiles.Add(NewPresetFilePath);
+                    NewPresetFilePath = ""; // Clear the textbox
+                    
+                    // Reload presets with new file
+                    LoadAvailablePresets();
+                }
+            }
+        }
+
+        private void RemovePresetFile(string filePath)
+        {
+            if (!string.IsNullOrWhiteSpace(filePath))
+            {
+                CustomPresetFiles.Remove(filePath);
+                
+                // Reload presets without the removed file
+                LoadAvailablePresets();
+            }
+        }
+
+        private void ClearPresetFiles()
+        {
+            CustomPresetFiles.Clear();
+            
+            // Reload presets without custom files
+            LoadAvailablePresets();
+        }
+
         private void Save()
         {
             // Update original settings with new values
@@ -270,6 +384,8 @@ namespace Batchbrake.ViewModels
             _originalSettings.Verbosity = Verbosity;
             _originalSettings.UpdateCheckEnabled = !UpdateCheckDisabled;
             _originalSettings.SendFileDone = SendFileDone;
+            _originalSettings.CustomPresetFile = CustomPresetFile;
+            _originalSettings.CustomPresetFiles = new List<string>(CustomPresetFiles);
 
             _window.Close(true);
         }
@@ -298,6 +414,8 @@ namespace Batchbrake.ViewModels
             Verbosity = 1;
             UpdateCheckDisabled = false;
             SendFileDone = false;
+            CustomPresetFile = "";
+            CustomPresetFiles.Clear();
             
             // Reload presets with default path
             LoadAvailablePresets();

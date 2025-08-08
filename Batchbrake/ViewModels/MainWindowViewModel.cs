@@ -416,7 +416,11 @@ namespace Batchbrake.ViewModels
                 {
                     // Settings were saved, save to file
                     await SaveHandBrakeSettingsAsync();
-                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] HandBrake settings updated\n";
+                    
+                    // Reload presets with new settings (including custom preset files)
+                    await LoadPresetsAsync();
+                    
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] HandBrake settings updated and presets reloaded\n";
                 }
             }
         });
@@ -769,6 +773,19 @@ namespace Batchbrake.ViewModels
             if (mainWindow?.MainWindow != null)
             {
                 await aboutDialog.ShowDialog(mainWindow.MainWindow);
+            }
+        });
+
+        // Help -> Custom Presets Command
+        public ReactiveCommand<Unit, Unit> ShowCustomPresetsHelpCommand => ReactiveCommand.CreateFromTask(async () =>
+        {
+            var helpDialog = new CustomPresetsHelpWindow();
+            
+            // Find the main window to set as owner
+            var mainWindow = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            if (mainWindow?.MainWindow != null)
+            {
+                await helpDialog.ShowDialog(mainWindow.MainWindow);
             }
         });
 

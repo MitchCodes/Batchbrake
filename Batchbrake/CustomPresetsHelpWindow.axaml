@@ -1,0 +1,152 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="Batchbrake.CustomPresetsHelpWindow"
+        Title="Using Custom HandBrake Presets"
+        Width="700" Height="600"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="18"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Margin" Value="0,0,0,15"/>
+      <Setter Property="Foreground" Value="#2C5282"/>
+    </Style>
+    <Style Selector="TextBlock.section-header">
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,20,0,10"/>
+      <Setter Property="Foreground" Value="#4A5568"/>
+    </Style>
+    <Style Selector="TextBlock.step">
+      <Setter Property="Margin" Value="20,5,0,5"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="TextBlock.note">
+      <Setter Property="FontStyle" Value="Italic"/>
+      <Setter Property="Foreground" Value="#718096"/>
+      <Setter Property="Margin" Value="0,10,0,0"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="Border.info-box">
+      <Setter Property="Background" Value="#EBF8FF"/>
+      <Setter Property="BorderBrush" Value="#90CDF4"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="15"/>
+      <Setter Property="Margin" Value="0,10,0,0"/>
+    </Style>
+    <Style Selector="Border.warning-box">
+      <Setter Property="Background" Value="#FFFBEB"/>
+      <Setter Property="BorderBrush" Value="#F6CC50"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="15"/>
+      <Setter Property="Margin" Value="0,10,0,0"/>
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <TextBlock Classes="title" Text="Using Custom HandBrake Presets"/>
+        
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10">
+          Batchbrake supports using custom presets that you've created in the HandBrake GUI application. You can import multiple preset files to organize different collections of encoding settings for batch video conversion.
+        </TextBlock>
+
+        <TextBlock Classes="section-header" Text="Step 1: Create Custom Presets in HandBrake"/>
+        <TextBlock Classes="step">1. Open the HandBrake application (the full GUI version, not HandBrakeCLI)</TextBlock>
+        <TextBlock Classes="step">2. Load a sample video file to configure your settings</TextBlock>
+        <TextBlock Classes="step">3. Configure all your desired encoding settings (video codec, quality, audio settings, etc.)</TextBlock>
+        <TextBlock Classes="step">4. Click the "Add Preset" button (+ icon) in the Presets panel</TextBlock>
+        <TextBlock Classes="step">5. Give your preset a descriptive name (e.g., "1440p High Quality", "Fast Web Encode")</TextBlock>
+        <TextBlock Classes="step">6. Click "Add" to save the preset</TextBlock>
+
+        <TextBlock Classes="section-header" Text="Step 2: Export Your Custom Presets"/>
+        <TextBlock Classes="step">1. In HandBrake, go to the main menu: <Run FontWeight="Bold">Presets → Export</Run></TextBlock>
+        <TextBlock Classes="step">2. Choose a location to save your presets file (remember this location!)</TextBlock>
+        <TextBlock Classes="step">3. Give the file a descriptive name like "MyCustomPresets.json"</TextBlock>
+        <TextBlock Classes="step">4. Click "Save" to export your presets to a JSON file</TextBlock>
+
+        <Border Classes="info-box">
+          <StackPanel>
+            <TextBlock FontWeight="SemiBold" Text="💡 Tip:" Foreground="#2B6CB0"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,5,0,0">
+              You can export presets multiple times as you create new ones. The export includes all custom presets you've created in HandBrake.
+            </TextBlock>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Classes="section-header" Text="Step 3: Import Presets into Batchbrake"/>
+        <TextBlock Classes="step">1. Open Batchbrake and go to <Run FontWeight="Bold">Tools → Preferences</Run></TextBlock>
+        <TextBlock Classes="step">2. Click on the <Run FontWeight="Bold">HandBrake Settings</Run> section</TextBlock>
+        <TextBlock Classes="step">3. In the "Custom Presets" section, enter the path to your JSON file or click <Run FontWeight="Bold">Browse...</Run></TextBlock>
+        <TextBlock Classes="step">4. Click <Run FontWeight="Bold">Add</Run> to add the preset file to your collection</TextBlock>
+        <TextBlock Classes="step">5. Repeat steps 3-4 to add multiple preset files if desired</TextBlock>
+        <TextBlock Classes="step">6. Click <Run FontWeight="Bold">OK</Run> to save your settings</TextBlock>
+
+        <TextBlock Classes="section-header" Text="Step 4: Using Your Custom Presets"/>
+        <TextBlock Classes="step">1. Add videos to your conversion queue as usual</TextBlock>
+        <TextBlock Classes="step">2. In the "Preset" dropdown for each video, your custom presets will now appear</TextBlock>
+        <TextBlock Classes="step">3. Select your custom preset (e.g., "1440p High Quality")</TextBlock>
+        <TextBlock Classes="step">4. Start the conversion - Batchbrake will use your custom settings</TextBlock>
+
+        <Border Classes="warning-box">
+          <StackPanel>
+            <TextBlock FontWeight="SemiBold" Text="⚠️ Important Notes:" Foreground="#D69E2E"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,5,0,0">
+              • The JSON preset file must remain in the same location you selected
+            </TextBlock>
+            <TextBlock TextWrapping="Wrap" Margin="0,5,0,0">
+              • If you create new presets in HandBrake, re-export and update the file path in Batchbrake
+            </TextBlock>
+            <TextBlock TextWrapping="Wrap" Margin="0,5,0,0">
+              • Custom presets take priority over built-in HandBrake presets
+            </TextBlock>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Classes="section-header" Text="Troubleshooting"/>
+        <TextBlock Classes="step">
+          <Run FontWeight="SemiBold">Custom presets don't appear:</Run>
+          Check that the JSON file path is correct and the file exists at that location.
+        </TextBlock>
+        <TextBlock Classes="step">
+          <Run FontWeight="SemiBold">Conversion fails with custom preset:</Run>
+          Verify the preset works in HandBrake GUI first, then re-export the presets.
+        </TextBlock>
+        <TextBlock Classes="step">
+          <Run FontWeight="SemiBold">Can't find exported file:</Run>
+          HandBrake typically saves exports to your Documents folder or Desktop by default.
+        </TextBlock>
+        <TextBlock Classes="step">
+          <Run FontWeight="SemiBold">Managing multiple preset files:</Run>
+          Use the ✕ button to remove unwanted files, or "Clear All" to start fresh. Files are processed in order.
+        </TextBlock>
+
+        <Border Classes="info-box">
+          <StackPanel>
+            <TextBlock FontWeight="SemiBold" Text="🎯 Pro Tip:" Foreground="#2B6CB0"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,5,0,0">
+              Create presets for common scenarios: "Web Upload", "Archive Quality", "Mobile Devices", etc. This makes batch processing much more efficient!
+            </TextBlock>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Close Button -->
+    <Border Grid.Row="1" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Margin="-20,15,-20,-20" Padding="20,15">
+      <Button Content="Close" HorizontalAlignment="Right" MinWidth="80" Click="CloseButton_Click"/>
+    </Border>
+  </Grid>
+</Window>

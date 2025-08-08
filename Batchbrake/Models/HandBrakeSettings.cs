@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -22,6 +23,8 @@ namespace Batchbrake.Models
         private int _verbosity = 1;
         private bool _updateCheckEnabled = false;
         private bool _sendFileDone = false;
+        private string _customPresetFile = "";
+        private List<string> _customPresetFiles = new List<string>();
 
         public string HandBrakeCLIPath
         {
@@ -244,6 +247,38 @@ namespace Batchbrake.Models
             }
         }
 
+        /// <summary>
+        /// Path to custom preset JSON file exported from HandBrake GUI (legacy - maintained for backward compatibility)
+        /// </summary>
+        public string CustomPresetFile
+        {
+            get => _customPresetFile;
+            set
+            {
+                if (_customPresetFile != value)
+                {
+                    _customPresetFile = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// List of custom preset JSON files exported from HandBrake GUI
+        /// </summary>
+        public List<string> CustomPresetFiles
+        {
+            get => _customPresetFiles;
+            set
+            {
+                if (_customPresetFiles != value)
+                {
+                    _customPresetFiles = value ?? new List<string>();
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -271,7 +306,9 @@ namespace Batchbrake.Models
                 AdditionalArguments = AdditionalArguments,
                 Verbosity = Verbosity,
                 UpdateCheckEnabled = UpdateCheckEnabled,
-                SendFileDone = SendFileDone
+                SendFileDone = SendFileDone,
+                CustomPresetFile = CustomPresetFile,
+                CustomPresetFiles = new List<string>(CustomPresetFiles)
             };
         }
     }

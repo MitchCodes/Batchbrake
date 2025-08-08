@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
@@ -57,11 +58,47 @@ namespace Batchbrake.Utilities
             
             try
             {
-                // First try to get presets with GUI import to include custom presets
-                var output = await ExecuteHandbrakeCommandAsync(importFromGui ? "--preset-list --preset-import-gui" : "--preset-list");
+                string command;
+                
+                // Check for multiple custom preset files first
+                var validPresetFiles = new List<string>();
+                
+                // Add files from the new list
+                if (_settings.CustomPresetFiles != null)
+                {
+                    validPresetFiles.AddRange(_settings.CustomPresetFiles.Where(f => !string.IsNullOrWhiteSpace(f) && File.Exists(f)));
+                }
+                
+                // Add legacy single file for backward compatibility
+                if (!string.IsNullOrWhiteSpace(_settings.CustomPresetFile) && File.Exists(_settings.CustomPresetFile))
+                {
+                    if (!validPresetFiles.Contains(_settings.CustomPresetFile))
+                    {
+                        validPresetFiles.Add(_settings.CustomPresetFile);
+                    }
+                }
+                
+                if (validPresetFiles.Any())
+                {
+                    // Import multiple preset files
+                    var importArgs = string.Join(" ", validPresetFiles.Select(f => $"--preset-import-file \"{f}\""));
+                    command = $"--preset-list {importArgs}";
+                    System.Diagnostics.Debug.WriteLine($"Loading presets from {validPresetFiles.Count} custom file(s): {string.Join(", ", validPresetFiles)}");
+                }
+                else if (importFromGui)
+                {
+                    command = "--preset-list --preset-import-gui";
+                    System.Diagnostics.Debug.WriteLine("Attempting to import GUI presets");
+                }
+                else
+                {
+                    command = "--preset-list";
+                }
+                
+                var output = await ExecuteHandbrakeCommandAsync(command);
                 var presets = ParsePresetOutput(output);
                 
-                // If we got presets with custom presets included, return them
+                // If we got presets, return them
                 if (presets.Any())
                 {
                     return presets;
@@ -69,8 +106,8 @@ namespace Batchbrake.Utilities
             }
             catch (Exception ex)
             {
-                // If importing GUI presets fails, fall back to built-in presets only
-                System.Diagnostics.Debug.WriteLine("Failed to import GUI presets, falling back to built-in presets only");
+                // If importing custom/GUI presets fails, fall back to built-in presets only
+                System.Diagnostics.Debug.WriteLine($"Failed to import presets: {ex.Message}");
                 lastException = ex;
             }
             
@@ -150,8 +187,37 @@ namespace Batchbrake.Utilities
         {
             var arguments = new StringBuilder();
             
-            // Always import GUI presets to ensure custom presets are available
-            arguments.Append("--preset-import-gui");
+            // Import custom preset files if specified
+            var validPresetFiles = new List<string>();
+            
+            // Add files from the new list
+            if (_settings.CustomPresetFiles != null)
+            {
+                validPresetFiles.AddRange(_settings.CustomPresetFiles.Where(f => !string.IsNullOrWhiteSpace(f) && File.Exists(f)));
+            }
+            
+            // Add legacy single file for backward compatibility
+            if (!string.IsNullOrWhiteSpace(_settings.CustomPresetFile) && File.Exists(_settings.CustomPresetFile))
+            {
+                if (!validPresetFiles.Contains(_settings.CustomPresetFile))
+                {
+                    validPresetFiles.Add(_settings.CustomPresetFile);
+                }
+            }
+            
+            if (validPresetFiles.Any())
+            {
+                // Import multiple preset files
+                foreach (var presetFile in validPresetFiles)
+                {
+                    arguments.AppendFormat("--preset-import-file \"{0}\" ", presetFile);
+                }
+            }
+            else
+            {
+                // Otherwise try to import GUI presets
+                arguments.Append("--preset-import-gui ");
+            }
             
             arguments.AppendFormat(" -i \"{0}\" -o \"{1}\"", inputFile, outputFile);
 

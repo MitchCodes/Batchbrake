@@ -61,6 +61,75 @@
           </Grid>
         </Border>
 
+        <!-- Custom Preset Files Section -->
+        <TextBlock Classes="section-header" Text="Custom Presets"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Preset Files:" VerticalAlignment="Top" Margin="0,5,10,0"/>
+              
+              <StackPanel Grid.Column="1">
+                <!-- List of preset files -->
+                <ListBox ItemsSource="{Binding CustomPresetFiles}" 
+                         SelectedItem="{Binding SelectedPresetFile}"
+                         MaxHeight="120" 
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         Margin="0,0,5,0">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*"/>
+                          <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding}" 
+                                 TextTrimming="CharacterEllipsis" 
+                                 VerticalAlignment="Center"
+                                 ToolTip.Tip="{Binding}"/>
+                        <Button Grid.Column="1" 
+                                Content="✕" 
+                                FontSize="10"
+                                Width="20" Height="20"
+                                Padding="0"
+                                Margin="5,0,0,0"
+                                Command="{Binding $parent[ListBox].((vm:HandBrakeSettingsViewModel)DataContext).RemovePresetFileCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Remove this preset file"/>
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                
+                <!-- Add new preset file row -->
+                <Grid Margin="0,5,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                  </Grid.ColumnDefinitions>
+                  <TextBox Grid.Column="0" Text="{Binding NewPresetFilePath}" Watermark="Path to preset JSON file..." Margin="0,0,5,0"/>
+                  <Button Grid.Column="1" Content="Browse..." Command="{Binding BrowseCustomPresetFileCommand}"/>
+                </Grid>
+              </StackPanel>
+              
+              <StackPanel Grid.Column="2" VerticalAlignment="Top" Spacing="5">
+                <Button Content="Add" Command="{Binding AddPresetFileCommand}" MinWidth="60"/>
+                <Button Content="Clear All" Command="{Binding ClearPresetFilesCommand}" MinWidth="60"/>
+              </StackPanel>
+            </Grid>
+            
+            <TextBlock Text="Export your custom presets from HandBrake GUI (Presets → Export) and add the JSON files here. Multiple preset files are supported." 
+                     FontSize="11" 
+                     Foreground="#666666" 
+                     TextWrapping="Wrap" 
+                     Margin="0,10,0,0"/>
+          </StackPanel>
+        </Border>
+
         <!-- Video Encoding Section -->
         <TextBlock Classes="section-header" Text="Video Encoding"/>
         <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
