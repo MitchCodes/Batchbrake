@@ -29,6 +29,9 @@ namespace Batchbrake.ViewModels
         private HandBrakeSettings _handBrakeSettings = new HandBrakeSettings();
         private SessionManager _sessionManager;
 
+        // Application preferences
+        public Preferences Preferences { get; private set; } = new Preferences();
+
         private ObservableCollection<VideoModelViewModel> _videoQueue = new ObservableCollection<VideoModelViewModel>();
         public ObservableCollection<VideoModelViewModel> VideoQueue
         {
@@ -114,7 +117,20 @@ namespace Batchbrake.ViewModels
         public string LogOutput
         {
             get => _logOutput;
-            set => this.RaiseAndSetIfChanged(ref _logOutput, value);
+            set
+            {
+                this.RaiseAndSetIfChanged(ref _logOutput, value);
+                // Automatically trim log when it gets too long
+                if (Preferences != null && Preferences.MaxLogLines > 0)
+                {
+                    var lines = _logOutput.Split('\n');
+                    if (lines.Length > Preferences.MaxLogLines)
+                    {
+                        var trimmedLines = lines.Skip(lines.Length - Preferences.MaxLogLines).ToArray();
+                        this.RaiseAndSetIfChanged(ref _logOutput, string.Join("\n", trimmedLines));
+                    }
+                }
+            }
         }
 
         private bool _deleteSourceAfterConversion;
@@ -152,6 +168,7 @@ namespace Batchbrake.ViewModels
             Task.Run(LoadPresetsAsync);
             Task.Run(LoadFFmpegSettingsAsync);
             Task.Run(LoadHandBrakeSettingsAsync);
+            Task.Run(LoadPreferencesAsync);
             Task.Run(LoadSessionAsync);
         }
 
@@ -230,12 +247,12 @@ namespace Batchbrake.ViewModels
 
             var videoInfo = await GetVideoInfoAsync(file); // Assume FFmpeg Wrapper provides this method
 
-            // Resolve output file name based on default output path pattern
-            string outputFolder = System.IO.Path.GetDirectoryName(file);
-            string resolvedOutputPath = DefaultOutputPath
+            // Resolve output file name based on default output path pattern from preferences
+            string outputFolder = System.IO.Path.GetDirectoryName(file) ?? "";
+            string resolvedOutputPath = (Preferences.DefaultOutputPath ?? DefaultOutputPath)
                 .Replace("$(Folder)", outputFolder)
                 .Replace("$(FileName)", System.IO.Path.GetFileNameWithoutExtension(file))
-                .Replace("$(Ext)", System.IO.Path.GetExtension(file).TrimStart('.'));
+                .Replace("$(Ext)", Preferences.DefaultOutputFormat ?? "mp4");
 
             // Get the current count of items
             int currentIndex = VideoQueue.Count;
@@ -247,13 +264,24 @@ namespace Batchbrake.ViewModels
                 VideoInfo = videoInfo,
                 Preset = DefaultPreset ?? Presets.FirstOrDefault(),
                 Presets = Presets,
-                OutputFilePath = resolvedOutputPath
+                OutputFilePath = resolvedOutputPath,
+                OutputFormat = Preferences.DefaultOutputFormat ?? "mp4"
             };
 
+            // Check if queue was empty before adding this video (for auto-start)
+            bool wasEmpty = VideoQueue.Count == 0;
+            
             VideoQueue.Add(video);
             
             // Auto-save session after adding video
             _ = Task.Run(SaveSessionAsync);
+            
+            // Auto-start conversion if preference is enabled and queue was empty
+            if (Preferences.AutoStartConversions && wasEmpty && !IsConverting)
+            {
+                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Auto-starting conversions (queue was empty)\n";
+                _ = StartConversionCommand.Execute().Subscribe();
+            }
         }
 
         public void RemoveVideo(VideoModelViewModel video)
@@ -544,7 +572,13 @@ namespace Batchbrake.ViewModels
                             video.ConversionProgress = 100;
                             LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted {video.VideoInfo?.FileName}\n";
                             
-                            if (DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
+                            // Show completion notification if enabled
+                            if (Preferences.ShowCompletionNotifications)
+                            {
+                                ShowNotification($"Conversion Complete", $"Successfully converted {video.VideoInfo?.FileName}");
+                            }
+                            
+                            if (Preferences.DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
                             {
                                 try
                                 {
@@ -598,7 +632,13 @@ namespace Batchbrake.ViewModels
                             video.EndTime = DateTime.Now;
                             LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted {video.VideoInfo?.FileName} using FFmpeg\n";
                             
-                            if (DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
+                            // Show completion notification if enabled
+                            if (Preferences.ShowCompletionNotifications)
+                            {
+                                ShowNotification($"Conversion Complete", $"Successfully converted {video.VideoInfo?.FileName}");
+                            }
+                            
+                            if (Preferences.DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
                             {
                                 try
                                 {
@@ -737,6 +777,40 @@ namespace Batchbrake.ViewModels
         {
             var appLifetime = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
             appLifetime?.Shutdown();
+        });
+
+        // Tools -> Preferences Command
+        public ReactiveCommand<Unit, Unit> OpenPreferencesCommand => ReactiveCommand.CreateFromTask(async () =>
+        {
+            PreferencesWindow? currentPreferencesWindow = null;
+            
+            var preferencesViewModel = new PreferencesViewModel(Preferences, 
+                onSave: (prefs) =>
+                {
+                    // Apply preferences immediately
+                    ApplyPreferences(prefs);
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Preferences updated\n";
+                    
+                    // Save preferences to file
+                    _ = Task.Run(SavePreferencesAsync);
+                    
+                    // Close the dialog
+                    currentPreferencesWindow?.Close();
+                },
+                onCancel: () =>
+                {
+                    // Close the dialog without saving
+                    currentPreferencesWindow?.Close();
+                });
+
+            currentPreferencesWindow = new PreferencesWindow(preferencesViewModel);
+            
+            // Find the main window to set as owner
+            var appLifetime = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            if (appLifetime?.MainWindow != null)
+            {
+                await currentPreferencesWindow.ShowDialog(appLifetime.MainWindow);
+            }
         });
 
         private void VideoQueue_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -905,10 +979,153 @@ namespace Batchbrake.ViewModels
             }
         }
 
+        private async Task LoadPreferencesAsync()
+        {
+            try
+            {
+                var settingsPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Batchbrake",
+                    "preferences.json"
+                );
+                
+                if (File.Exists(settingsPath))
+                {
+                    var json = await File.ReadAllTextAsync(settingsPath);
+                    var preferences = JsonSerializer.Deserialize<Preferences>(json);
+                    if (preferences != null)
+                    {
+                        Preferences = preferences;
+                        ApplyPreferences(Preferences);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to load preferences: {ex.Message}\n";
+                });
+            }
+        }
+
+        private async Task SavePreferencesAsync()
+        {
+            try
+            {
+                var settingsDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Batchbrake"
+                );
+                
+                if (!Directory.Exists(settingsDir))
+                {
+                    Directory.CreateDirectory(settingsDir);
+                }
+
+                var settingsPath = Path.Combine(settingsDir, "preferences.json");
+                var json = JsonSerializer.Serialize(Preferences, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(settingsPath, json);
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to save preferences: {ex.Message}\n";
+                });
+            }
+        }
+
+        private void ApplyPreferences(Preferences preferences)
+        {
+            // Apply preferences that affect the current UI state
+            if (preferences.DefaultParallelInstances >= 1 && preferences.DefaultParallelInstances <= 10)
+            {
+                ParallelInstances = preferences.DefaultParallelInstances;
+            }
+
+            // Set up auto-save timer if enabled
+            SetupAutoSaveTimer();
+
+            // Apply log verbosity settings
+            // This will be used when logging messages
+            // LogVerbosity is checked in logging methods
+            
+            // Apply maximum log lines limit
+            TrimLogOutput();
+        }
+
+        private System.Threading.Timer? _autoSaveTimer;
+        
+        private void SetupAutoSaveTimer()
+        {
+            // Dispose existing timer if any
+            _autoSaveTimer?.Dispose();
+            _autoSaveTimer = null;
+
+            if (Preferences.AutoSaveSession)
+            {
+                var interval = TimeSpan.FromMinutes(Preferences.AutoSaveIntervalMinutes);
+                _autoSaveTimer = new System.Threading.Timer(async _ =>
+                {
+                    await SaveSessionAsync();
+                }, null, interval, interval);
+            }
+        }
+
+        private void TrimLogOutput()
+        {
+            if (Preferences.MaxLogLines <= 0) return;
+
+            var lines = LogOutput.Split('\n');
+            if (lines.Length > Preferences.MaxLogLines)
+            {
+                var trimmedLines = lines.Skip(lines.Length - Preferences.MaxLogLines).ToArray();
+                LogOutput = string.Join("\n", trimmedLines);
+            }
+        }
+
+        private void ShowNotification(string title, string message)
+        {
+            // Note: Full system notification implementation would require platform-specific code
+            // For now, just log it
+            LogOutput += $"[{DateTime.Now:HH:mm:ss}] NOTIFICATION: {title} - {message}\n";
+            
+            // TODO: Implement actual system notifications using:
+            // - Windows: Windows.UI.Notifications or System.Windows.Forms.NotifyIcon
+            // - macOS: NSUserNotification
+            // - Linux: libnotify
+        }
+
+        private void LogMessage(string message, int requiredVerbosity = 1)
+        {
+            // Only log if verbosity level is high enough
+            if (Preferences.LogVerbosity >= requiredVerbosity)
+            {
+                LogOutput += $"[{DateTime.Now:HH:mm:ss}] {message}\n";
+            }
+        }
+
+        private void LogVerbose(string message)
+        {
+            LogMessage(message, 2); // Only shows in Detailed mode
+        }
+
+        private void LogNormal(string message)
+        {
+            LogMessage(message, 1); // Shows in Normal and Detailed modes
+        }
+
+        private void LogMinimal(string message)
+        {
+            LogMessage(message, 0); // Always shows
+        }
+
         public void Dispose()
         {
             _conversionCancellationTokenSource?.Cancel();
             _conversionCancellationTokenSource?.Dispose();
+            _autoSaveTimer?.Dispose();
         }
     }
 }

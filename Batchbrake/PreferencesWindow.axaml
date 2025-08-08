@@ -1,0 +1,191 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Batchbrake.ViewModels"
+        x:Class="Batchbrake.PreferencesWindow"
+        x:DataType="vm:PreferencesViewModel"
+        Title="Preferences - Batchbrake"
+        Width="600" Height="650"
+        MinWidth="550" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        CanResize="true">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.section-header">
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,15,0,8"/>
+      <Setter Property="Foreground" Value="#333333"/>
+    </Style>
+    <Style Selector="TextBlock.description">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Foreground" Value="#666666"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="Margin" Value="0,2,0,8"/>
+    </Style>
+    <Style Selector="Border.section">
+      <Setter Property="Background" Value="#FAFAFA"/>
+      <Setter Property="BorderBrush" Value="#E0E0E0"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="15"/>
+      <Setter Property="Margin" Value="0,5,0,10"/>
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="20">
+    <!-- Button Bar -->
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,20,0,0">
+      <Button Content="Restore Defaults" Command="{Binding RestoreDefaultsCommand}" MinWidth="120"/>
+      <Button Content="Cancel" Command="{Binding CancelCommand}" MinWidth="80"/>
+      <Button Content="OK" Command="{Binding SaveCommand}" Classes="primary" MinWidth="80"/>
+    </StackPanel>
+
+    <!-- Settings Content -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        
+        <!-- General Settings -->
+        <TextBlock Classes="section-header" Text="General"/>
+        <Border Classes="section">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Default Parallel Instances:" VerticalAlignment="Center" MinWidth="200"/>
+              <NumericUpDown Grid.Row="0" Grid.Column="1" 
+                           Minimum="1" Maximum="10" 
+                           Value="{Binding DefaultParallelInstances}" 
+                           HorizontalAlignment="Left" Width="100" Margin="10,0,0,0"/>
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Default Output Format:" VerticalAlignment="Center" Margin="0,10,0,0"/>
+              <ComboBox Grid.Row="1" Grid.Column="1" 
+                      SelectedItem="{Binding DefaultOutputFormat}"
+                      HorizontalAlignment="Left" Width="150" Margin="10,10,0,0">
+                <ComboBoxItem>mp4</ComboBoxItem>
+                <ComboBoxItem>mkv</ComboBoxItem>
+                <ComboBoxItem>webm</ComboBoxItem>
+                <ComboBoxItem>avi</ComboBoxItem>
+              </ComboBox>
+
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Default Output Path:" VerticalAlignment="Top" Margin="0,15,0,0"/>
+              <StackPanel Grid.Row="2" Grid.Column="1" Margin="10,15,0,0">
+                <TextBox Text="{Binding DefaultOutputPath}" MinWidth="300"/>
+                <TextBlock Classes="description" Text="Variables: $(Folder), $(FileName), $(Ext)"/>
+              </StackPanel>
+
+              <CheckBox Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                      Content="Remember window size and position" 
+                      IsChecked="{Binding RememberWindowState}"
+                      Margin="0,15,0,0"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- Conversion Settings -->
+        <TextBlock Classes="section-header" Text="Conversion"/>
+        <Border Classes="section">
+          <StackPanel>
+            <CheckBox Content="Delete source files after successful conversion" 
+                    IsChecked="{Binding DeleteSourceAfterConversion}"/>
+            <TextBlock Classes="description" Text="WARNING: Source files will be permanently deleted after conversion completes successfully"/>
+            
+            <CheckBox Content="Auto-start conversions when videos are added" 
+                    IsChecked="{Binding AutoStartConversions}"
+                    Margin="0,15,0,0"/>
+            <TextBlock Classes="description" Text="Automatically begin processing when videos are added to an empty queue"/>
+            
+            <CheckBox Content="Show completion notifications" 
+                    IsChecked="{Binding ShowCompletionNotifications}"
+                    Margin="0,15,0,0"/>
+            <TextBlock Classes="description" Text="Display system notifications when video conversions finish"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Session Settings -->
+        <TextBlock Classes="section-header" Text="Session Management"/>
+        <Border Classes="section">
+          <StackPanel>
+            <CheckBox Content="Auto-save session" 
+                    IsChecked="{Binding AutoSaveSession}"/>
+            <TextBlock Classes="description" Text="Automatically save queue and settings to preserve your work"/>
+            
+            <Grid Margin="0,15,0,0" IsEnabled="{Binding AutoSaveSession}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              
+              <TextBlock Grid.Column="0" Text="Auto-save interval (minutes):" VerticalAlignment="Center" MinWidth="200"/>
+              <NumericUpDown Grid.Column="1" 
+                           Minimum="1" Maximum="60" 
+                           Value="{Binding AutoSaveIntervalMinutes}" 
+                           HorizontalAlignment="Left" Width="100" Margin="10,0,0,0"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- Logging Settings -->
+        <TextBlock Classes="section-header" Text="Logging"/>
+        <Border Classes="section">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Log Verbosity:" VerticalAlignment="Center" MinWidth="200"/>
+              <ComboBox Grid.Row="0" Grid.Column="1" 
+                      SelectedIndex="{Binding LogVerbosity}"
+                      HorizontalAlignment="Left" Width="150" Margin="10,0,0,0">
+                <ComboBoxItem>Minimal</ComboBoxItem>
+                <ComboBoxItem>Normal</ComboBoxItem>
+                <ComboBoxItem>Detailed</ComboBoxItem>
+              </ComboBox>
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Maximum Log Lines:" VerticalAlignment="Center" Margin="0,15,0,0"/>
+              <NumericUpDown Grid.Row="1" Grid.Column="1" 
+                           Minimum="100" Maximum="10000" Increment="100"
+                           Value="{Binding MaxLogLines}" 
+                           HorizontalAlignment="Left" Width="100" Margin="10,15,0,0"/>
+            </Grid>
+            <TextBlock Classes="description" Text="Higher verbosity provides more detailed conversion information. More log lines use more memory." Margin="0,8,0,0"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Advanced Settings -->
+        <TextBlock Classes="section-header" Text="Advanced"/>
+        <Border Classes="section">
+          <StackPanel>
+            <CheckBox Content="Minimize to system tray when closed" 
+                    IsChecked="{Binding MinimizeToTray}"/>
+            <TextBlock Classes="description" Text="Keep the application running in the system tray instead of closing completely"/>
+            
+            <TextBlock Text="Supported Video Extensions:" Margin="0,15,0,5"/>
+            <TextBox Text="{Binding SupportedVideoExtensionsText}" 
+                   AcceptsReturn="False"
+                   TextWrapping="Wrap"
+                   MinHeight="60"/>
+            <TextBlock Classes="description" Text="Comma-separated list of file extensions (with dots) that will be accepted via drag and drop"/>
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

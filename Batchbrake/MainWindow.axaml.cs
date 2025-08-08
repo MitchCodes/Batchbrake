@@ -88,7 +88,8 @@ namespace Batchbrake
 
             if (filesDropped.Count > 0 && viewModel != null)
             {
-                var videoExtensions = new[] { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg" };
+                var videoExtensions = viewModel.Preferences?.SupportedVideoExtensions ?? 
+                    new List<string> { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg" };
                 foreach (var file in filesDropped)
                 {
                     var extension = System.IO.Path.GetExtension(file).ToLowerInvariant();
@@ -161,7 +162,9 @@ namespace Batchbrake
         // Helper method to check if drag contains video files
         private bool HasVideoFiles(DragEventArgs e)
         {
-            var videoExtensions = new[] { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg" };
+            var viewModel = DataContext as MainWindowViewModel;
+            var videoExtensions = viewModel?.Preferences?.SupportedVideoExtensions ?? 
+                new List<string> { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg" };
 
             if (e.Data.Contains(DataFormats.Files))
             {
