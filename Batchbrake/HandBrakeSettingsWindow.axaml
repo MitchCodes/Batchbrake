@@ -1,0 +1,280 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Batchbrake.ViewModels"
+        x:Class="Batchbrake.HandBrakeSettingsWindow"
+        x:DataType="vm:HandBrakeSettingsViewModel"
+        Title="HandBrake Settings"
+        Width="650" Height="700"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+  
+  <Window.Styles>
+    <Style Selector="TextBlock.section-header">
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,15,0,10"/>
+      <Setter Property="Foreground" Value="#333333"/>
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="0,0,10,0"/>
+      <Setter Property="MinWidth" Value="150"/>
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Padding" Value="8,6"/>
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="MinHeight" Value="32"/>
+    </Style>
+    <Style Selector="NumericUpDown">
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="MinHeight" Value="32"/>
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Margin" Value="0,5"/>
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <!-- Executable Path Section -->
+        <TextBlock Classes="section-header" Text="HandBrake CLI Path"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Classes="field-label" Text="HandBrakeCLI Path:"/>
+            <TextBox Grid.Column="1" Text="{Binding HandBrakeCLIPath}" />
+            <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseHandBrakeCLICommand}" Margin="5,0,0,0"/>
+          </Grid>
+        </Border>
+
+        <!-- Video Encoding Section -->
+        <TextBlock Classes="section-header" Text="Video Encoding"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel Spacing="10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Video Encoder:"/>
+              <ComboBox Grid.Column="1" SelectedItem="{Binding VideoEncoder}">
+                <ComboBoxItem>x264</ComboBoxItem>
+                <ComboBoxItem>x265</ComboBoxItem>
+                <ComboBoxItem>mpeg4</ComboBoxItem>
+                <ComboBoxItem>mpeg2</ComboBoxItem>
+                <ComboBoxItem>VP8</ComboBoxItem>
+                <ComboBoxItem>VP9</ComboBoxItem>
+                <ComboBoxItem>theora</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Quality (RF):"/>
+              <Grid Grid.Column="1">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Slider Grid.Column="0" 
+                        Minimum="0" Maximum="51" 
+                        Value="{Binding QualityValue}"
+                        TickFrequency="1"
+                        IsSnapToTickEnabled="True"/>
+                <TextBlock Grid.Column="1" Text="{Binding QualityValue}" 
+                         VerticalAlignment="Center" 
+                         Width="30" Margin="10,0,0,0"/>
+              </Grid>
+            </Grid>
+
+            <CheckBox Content="Two-pass encoding" 
+                    IsChecked="{Binding TwoPass}"/>
+            
+            <CheckBox Content="Turbo first pass" 
+                    IsChecked="{Binding TurboFirstPass}"
+                    IsEnabled="{Binding TwoPass}"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Audio Encoding Section -->
+        <TextBlock Classes="section-header" Text="Audio Encoding"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel Spacing="10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Audio Encoder:"/>
+              <ComboBox Grid.Column="1" SelectedItem="{Binding AudioEncoder}">
+                <ComboBoxItem>av_aac</ComboBoxItem>
+                <ComboBoxItem>fdk_aac</ComboBoxItem>
+                <ComboBoxItem>copy:aac</ComboBoxItem>
+                <ComboBoxItem>ac3</ComboBoxItem>
+                <ComboBoxItem>copy:ac3</ComboBoxItem>
+                <ComboBoxItem>eac3</ComboBoxItem>
+                <ComboBoxItem>mp3</ComboBoxItem>
+                <ComboBoxItem>vorbis</ComboBoxItem>
+                <ComboBoxItem>flac16</ComboBoxItem>
+                <ComboBoxItem>flac24</ComboBoxItem>
+                <ComboBoxItem>opus</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Audio Bitrate (kbps):"/>
+              <NumericUpDown Grid.Column="1" 
+                           Minimum="32" Maximum="320" 
+                           Increment="32"
+                           Value="{Binding AudioBitrate}" />
+            </Grid>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Audio Mixdown:"/>
+              <ComboBox Grid.Column="1" SelectedItem="{Binding AudioMixdown}">
+                <ComboBoxItem>mono</ComboBoxItem>
+                <ComboBoxItem>stereo</ComboBoxItem>
+                <ComboBoxItem>dpl1</ComboBoxItem>
+                <ComboBoxItem>dpl2</ComboBoxItem>
+                <ComboBoxItem>5point1</ComboBoxItem>
+                <ComboBoxItem>6point1</ComboBoxItem>
+                <ComboBoxItem>7point1</ComboBoxItem>
+                <ComboBoxItem>5_2_lfe</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- Output Settings Section -->
+        <TextBlock Classes="section-header" Text="Output Settings"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel Spacing="10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Output Format:"/>
+              <ComboBox Grid.Column="1" SelectedItem="{Binding OutputFormat}">
+                <ComboBoxItem>mp4</ComboBoxItem>
+                <ComboBoxItem>mkv</ComboBoxItem>
+                <ComboBoxItem>webm</ComboBoxItem>
+                <ComboBoxItem>avi</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Default Preset:"/>
+              <ComboBox Grid.Column="1" 
+                      ItemsSource="{Binding AvailablePresets}"
+                      SelectedItem="{Binding DefaultPreset}"/>
+            </Grid>
+
+            <CheckBox Content="Include chapter markers" 
+                    IsChecked="{Binding IncludeChapterMarkers}"/>
+            
+            <CheckBox Content="Optimize for web streaming (MP4 only)" 
+                    IsChecked="{Binding OptimizeForWeb}"/>
+            
+            <CheckBox Content="iPod 5G compatible (MP4 only)" 
+                    IsChecked="{Binding IPodCompatible}"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Advanced Settings Section -->
+        <TextBlock Classes="section-header" Text="Advanced Settings"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel Spacing="10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Verbosity Level:"/>
+              <ComboBox Grid.Column="1" SelectedIndex="{Binding Verbosity}">
+                <ComboBoxItem>Quiet</ComboBoxItem>
+                <ComboBoxItem>Normal</ComboBoxItem>
+                <ComboBoxItem>Verbose</ComboBoxItem>
+                <ComboBoxItem>Debug</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+
+            <CheckBox Content="Disable HandBrake update checks" 
+                    IsChecked="{Binding UpdateCheckDisabled}"/>
+            
+            <CheckBox Content="Send file done notification" 
+                    IsChecked="{Binding SendFileDone}"/>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Grid.Column="0" Classes="field-label" Text="Additional Arguments:" VerticalAlignment="Top"/>
+              <TextBox Grid.Row="0" Grid.Column="1" 
+                     Text="{Binding AdditionalArguments}" 
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     Height="60"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" 
+                       Text="Enter any additional HandBrake command-line arguments"
+                       FontSize="11" Foreground="#666666" Margin="0,5,0,0"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Buttons -->
+    <Border Grid.Row="1" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Margin="-20,15,-20,-20" Padding="20,15">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        
+        <Button Grid.Column="0" Content="Reset to Defaults" Command="{Binding ResetToDefaultsCommand}"/>
+        
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+          <Button Content="OK" Command="{Binding SaveCommand}" Classes="primary" MinWidth="80"/>
+          <Button Content="Cancel" Command="{Binding CancelCommand}" MinWidth="80"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

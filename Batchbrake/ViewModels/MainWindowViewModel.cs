@@ -25,6 +25,7 @@ namespace Batchbrake.ViewModels
         private IFilePickerService _filePickerService;
         private CancellationTokenSource? _conversionCancellationTokenSource;
         private FFmpegSettings _ffmpegSettings = new FFmpegSettings();
+        private HandBrakeSettings _handBrakeSettings = new HandBrakeSettings();
 
         private ObservableCollection<VideoModelViewModel> _videoQueue = new ObservableCollection<VideoModelViewModel>();
         public ObservableCollection<VideoModelViewModel> VideoQueue
@@ -147,13 +148,14 @@ namespace Batchbrake.ViewModels
 
             Task.Run(LoadPresetsAsync);
             Task.Run(LoadFFmpegSettingsAsync);
+            Task.Run(LoadHandBrakeSettingsAsync);
         }
 
         private async Task LoadPresetsAsync()
         {
             try
             {
-                var handbrakeCliWrapper = new HandbrakeCLIWrapper();
+                var handbrakeCliWrapper = new HandbrakeCLIWrapper(_handBrakeSettings);
                 var presets = await handbrakeCliWrapper.GetAvailablePresetsAsync();
 
                 RxApp.MainThreadScheduler.Schedule(() =>
@@ -317,6 +319,27 @@ namespace Batchbrake.ViewModels
             }
         });
 
+        // Open HandBrake Settings Command
+        public ReactiveCommand<Unit, Unit> OpenHandBrakeSettingsCommand => ReactiveCommand.CreateFromTask(async () =>
+        {
+            var window = new HandBrakeSettingsWindow();
+            var viewModel = new HandBrakeSettingsViewModel(_handBrakeSettings, _filePickerService, window);
+            window.DataContext = viewModel;
+            
+            // Find the main window to set as owner
+            var mainWindow = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            if (mainWindow?.MainWindow != null)
+            {
+                var result = await window.ShowDialog<bool>(mainWindow.MainWindow);
+                if (result)
+                {
+                    // Settings were saved, save to file
+                    await SaveHandBrakeSettingsAsync();
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] HandBrake settings updated\n";
+                }
+            }
+        });
+
         // Retrieve video info via FFmpeg wrapper
         private async Task<VideoInfoModel> GetVideoInfoAsync(string filePath)
         {
@@ -425,7 +448,7 @@ namespace Batchbrake.ViewModels
                     LogOutput += $"[{DateTime.Now:HH:mm:ss}] Starting conversion of {video.VideoInfo?.FileName}\n";
                 });
                 
-                var handbrakeCliWrapper = new HandbrakeCLIWrapper();
+                var handbrakeCliWrapper = new HandbrakeCLIWrapper(_handBrakeSettings);
                 
                 // Subscribe to progress events with UI thread marshaling
                 handbrakeCliWrapper.ProgressChanged += (sender, e) =>
@@ -556,6 +579,62 @@ namespace Batchbrake.ViewModels
             this.RaisePropertyChanged(nameof(ProcessingCount));
             this.RaisePropertyChanged(nameof(CompletedCount));
             this.RaisePropertyChanged(nameof(CanStartConversion));
+        }
+
+        private async Task LoadHandBrakeSettingsAsync()
+        {
+            try
+            {
+                var settingsPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Batchbrake",
+                    "handbrake-settings.json"
+                );
+
+                if (File.Exists(settingsPath))
+                {
+                    var json = await File.ReadAllTextAsync(settingsPath);
+                    var settings = JsonSerializer.Deserialize<HandBrakeSettings>(json);
+                    if (settings != null)
+                    {
+                        _handBrakeSettings = settings;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to load HandBrake settings: {ex.Message}\n";
+                });
+            }
+        }
+
+        private async Task SaveHandBrakeSettingsAsync()
+        {
+            try
+            {
+                var settingsDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Batchbrake"
+                );
+                
+                if (!Directory.Exists(settingsDir))
+                {
+                    Directory.CreateDirectory(settingsDir);
+                }
+
+                var settingsPath = Path.Combine(settingsDir, "handbrake-settings.json");
+                var json = JsonSerializer.Serialize(_handBrakeSettings, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(settingsPath, json);
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to save HandBrake settings: {ex.Message}\n";
+                });
+            }
         }
 
         private async Task LoadFFmpegSettingsAsync()

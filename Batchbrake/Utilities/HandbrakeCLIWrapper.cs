@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.Text.RegularExpressions;
 using System.Linq;
+using Batchbrake.Models;
 
 namespace Batchbrake.Utilities
 {
     public class HandbrakeCLIWrapper
     {
         private readonly string _handbrakeCLIPath;
+        private readonly HandBrakeSettings _settings;
         private Process _currentProcess;
         private CancellationTokenSource _cancellationTokenSource;
 
@@ -21,6 +23,13 @@ namespace Batchbrake.Utilities
         public HandbrakeCLIWrapper(string handbrakeCLIPath = "handbrakecli")
         {
             _handbrakeCLIPath = handbrakeCLIPath;
+            _settings = new HandBrakeSettings { HandBrakeCLIPath = handbrakeCLIPath };
+        }
+
+        public HandbrakeCLIWrapper(HandBrakeSettings settings)
+        {
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _handbrakeCLIPath = settings.HandBrakeCLIPath;
         }
 
         /// <summary>
