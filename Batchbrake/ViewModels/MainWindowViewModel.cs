@@ -138,7 +138,7 @@ namespace Batchbrake.ViewModels
             VideoQueue.CollectionChanged += VideoQueue_CollectionChanged;
         }
 
-        public MainWindowViewModel(IFilePickerService filePickerService)
+        public MainWindowViewModel(IFilePickerService filePickerService) : this()
         {
             _filePickerService = filePickerService;
 
@@ -279,49 +279,129 @@ namespace Batchbrake.ViewModels
         }
 
         // Start Conversion Command
-        public async Task StartConversionCommand()
+        public ReactiveCommand<Unit, Unit> StartConversionCommand => ReactiveCommand.CreateFromTask(async () =>
         {
             if (!IsHandbrakeCLIAvailable())
             {
-                // Notify user that HandbrakeCLI is not available
+                StatusText = "HandBrakeCLI not found";
+                LogOutput += $"[{DateTime.Now:HH:mm:ss}] ERROR: HandBrakeCLI not found at specified path\n";
                 return;
             }
-            /*
-            foreach (var video in VideoQueue)
-            {
-                if (video.Clips == null || video.Clips.Count == 0)
-                {
-                    // Convert entire video using Handbrake CLI wrapper
-                    var handbrakeCLI = new HandbrakeCLIWrapper("handbrake-cli-path");
-                    await handbrakeCLI.ConvertVideoAsync(video.InputFilePath, video.OutputFilePath, video.Preset);
-                }
-                else
-                {
-                    // Implement clip-based conversion (trim clips)
-                }
 
-                // Optionally delete source video after conversion
+            IsConverting = true;
+            StatusText = "Starting conversion...";
+            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Starting batch conversion of {VideoQueue.Count} videos\n";
+
+            var videosToProcess = VideoQueue.Where(v => v.ConversionStatus == VideoConversionStatus.NotStarted || 
+                                                      v.ConversionStatus == VideoConversionStatus.Queued).ToList();
+
+            var semaphore = new System.Threading.SemaphoreSlim(ParallelInstances, ParallelInstances);
+            var tasks = videosToProcess.Select(async video =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await ProcessVideo(video);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToArray();
+
+            await Task.WhenAll(tasks);
+
+            IsConverting = false;
+            StatusText = $"Conversion completed. {CompletedCount} videos processed.";
+            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Batch conversion completed\n";
+        });
+
+        private async Task ProcessVideo(VideoModelViewModel video)
+        {
+            try
+            {
+                video.ConversionStatus = VideoConversionStatus.InProgress;
+                video.ConversionProgress = 0;
+                video.StartTime = DateTime.Now;
+                
+                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Starting conversion of {video.VideoInfo?.FileName}\n";
+                
+                var handbrakeCliWrapper = new HandbrakeCLIWrapper();
+                
+                // Subscribe to progress events
+                handbrakeCliWrapper.ProgressChanged += (sender, e) =>
+                {
+                    video.ConversionProgress = e.Progress;
+                };
+                
+                handbrakeCliWrapper.ConversionCompleted += (sender, e) =>
+                {
+                    video.EndTime = DateTime.Now;
+                    if (e.Success)
+                    {
+                        video.ConversionStatus = VideoConversionStatus.Completed;
+                        video.ConversionProgress = 100;
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted {video.VideoInfo?.FileName}\n";
+                        
+                        if (DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
+                        {
+                            try
+                            {
+                                File.Delete(video.InputFilePath);
+                                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Deleted source file {video.VideoInfo?.FileName}\n";
+                            }
+                            catch (Exception ex)
+                            {
+                                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to delete source file: {ex.Message}\n";
+                            }
+                        }
+                    }
+                    else
+                    {
+                        video.ConversionStatus = VideoConversionStatus.Failed;
+                        video.ErrorMessage = e.ErrorMessage;
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to convert {video.VideoInfo?.FileName}: {e.ErrorMessage}\n";
+                    }
+                };
+                
+                await handbrakeCliWrapper.ConvertVideoAsync(
+                    video.InputFilePath!, 
+                    video.OutputFilePath!, 
+                    video.Preset);
             }
-            */
+            catch (Exception ex)
+            {
+                video.ConversionStatus = VideoConversionStatus.Failed;
+                video.ErrorMessage = ex.Message;
+                video.EndTime = DateTime.Now;
+                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Error processing {video.VideoInfo?.FileName}: {ex.Message}\n";
+            }
         }
 
         // Auto-detect HandbrakeCLI
         private bool IsHandbrakeCLIAvailable()
         {
-            var handbrakePath = "handbrake-cli-path"; // Logic to auto-detect HandbrakeCLI
-            return System.IO.File.Exists(handbrakePath);
+            try
+            {
+                var handbrakeWrapper = new HandbrakeCLIWrapper();
+                return handbrakeWrapper.IsAvailableAsync().Result;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         // Add Videos Command
-        public async Task AddVideosCommand()
+        public ReactiveCommand<Unit, Unit> AddVideosCommand => ReactiveCommand.CreateFromTask(async () =>
         {
             // Start async operation to open the dialog.
             var files = await _filePickerService.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 FileTypeFilter = new List<FilePickerFileType>() {
-                    new FilePickerFileType("Videos") { Patterns = new List<string> { "*.mp4", "*.mkv", "*.avi" } }
+                    new FilePickerFileType("Videos") { Patterns = new List<string> { "*.mp4", "*.mkv", "*.avi", "*.mov", "*.wmv", "*.flv", "*.webm", "*.m4v", "*.mpg", "*.mpeg" } }
                 },
-                Title = "Videos",
+                Title = "Select Videos",
                 AllowMultiple = true
             });
 
@@ -334,8 +414,10 @@ namespace Batchbrake.ViewModels
                         await AddNewFile(Uri.UnescapeDataString(file.Path.AbsolutePath));
                     }
                 }
+                
+                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Added {files.Count} video(s) to queue\n";
             }
-        }
+        });
 
         private void VideoQueue_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {

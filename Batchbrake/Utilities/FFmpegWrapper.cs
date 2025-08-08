@@ -19,7 +19,7 @@ namespace Batchbrake.Utilities
         /// <param name="ffmpegPath">The path to the FFmpeg executable.</param>
         public FFmpegWrapper(string ffmpegPath)
         {
-            _ffmpegPath = ffmpegPath;
+            _ffmpegPath = ffmpegPath ?? throw new ArgumentNullException(nameof(ffmpegPath));
         }
 
         /// <summary>
@@ -29,6 +29,9 @@ namespace Batchbrake.Utilities
         /// <returns>The details of the video file.</returns>
         public VideoInfoModel GetVideoInfo(string filePath)
         {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+                
             var startInfo = new ProcessStartInfo
             {
                 FileName = _ffmpegPath,
