@@ -1,0 +1,73 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Batchbrake.ViewModels"
+        xmlns:conv="using:Batchbrake.Converters"
+        x:Class="Batchbrake.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Batchbrake - Video Converter" Width="1400" Height="1000">
+  <StackPanel>
+    <StackPanel.Resources>
+      <SolidColorBrush x:Key="EvenRowBrush" Color="#FFFFFF"/>
+      <SolidColorBrush x:Key="OddRowBrush" Color="#F0F0F0"/>
+      <conv:IndexToBrushConverter x:Key="IndexToBrushConverter"
+                                  EvenBrush="{StaticResource EvenRowBrush}"
+                                  OddBrush="{StaticResource OddRowBrush}"/>
+    </StackPanel.Resources>
+    
+    <!-- Video Queue -->
+    <TextBlock Text="Video Queue" FontWeight="Bold" FontSize="16" Margin="10"/>
+    <ScrollViewer Width="1300" Height="450" HorizontalAlignment="Left">
+      <ItemsControl ItemsSource="{Binding VideoQueue}" Margin="10">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border BorderBrush="Gray" BorderThickness="0,0,0,1" Padding="5">
+              <!-- Updated Style -->
+              <Border.Styles>
+                <Style Selector="StackPanel">
+                  <!-- Base background from the IndexToBrushConverter -->
+                  <Setter Property="Background" Value="{Binding Index, Converter={StaticResource IndexToBrushConverter}}"/>
+                </Style>
+                <Style Selector="StackPanel:pointerover">
+                  <!-- Background when pointer is over the Border -->
+                  <Setter Property="Background" Value="#D0E0FF"/>
+                </Style>
+              </Border.Styles>
+              <StackPanel Orientation="Horizontal" Width="1300" HorizontalAlignment="Left">
+                <!-- Your controls here -->
+                <TextBlock Text="{Binding VideoInfo.FileName}" Width="275" Margin="10,0"/>
+                <TextBlock Text="{Binding VideoInfo.Duration}" Width="75" Margin="10,0"/>
+                <TextBlock Text="{Binding VideoInfo.Resolution}" Width="100" Margin="10,0"/>
+                <TextBox Text="{Binding OutputFilePath}" Width="300" Margin="10,0" />
+                <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding Preset}" Width="150" Margin="10,0"/>
+                <Button Content="Open" Command="{Binding ((vm:MainWindowViewModel)DataContext).OpenVideoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Width="75" Margin="10"/>
+                <Button Content="Folder" Command="{Binding ((vm:MainWindowViewModel)DataContext).OpenVideoFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Width="75" Margin="10"/>
+                <Button Content="Delete" Command="{Binding ((vm:MainWindowViewModel)DataContext).RemoveVideoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Width="75" Margin="10"/>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <!-- Add Video Button -->
+    <Button Content="Add Videos" Command="{Binding AddVideosCommand}" Margin="10"/>
+
+    <!-- Parallel Instances Configuration -->
+    <TextBlock Text="Parallel Instances" Margin="10,10,0,0"/>
+    <NumericUpDown Minimum="1" Maximum="10" Value="{Binding ParallelInstances}" Width="100" Margin="10,0,0,10" HorizontalAlignment="Left" />
+
+    <!-- Default Preset -->
+    <TextBlock Text="Default Preset" Margin="10,10,0,0"/>
+    <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding DefaultPreset}" Width="150" Margin="10,0,0,10" />
+
+    <!-- Default Output Path -->
+    <TextBlock Text="Default Output Path" Margin="10,10,0,0"/>
+    <TextBox Text="{Binding DefaultOutputPath}" Width="400" Margin="10,0,0,0" HorizontalAlignment="Left" />
+    <TextBlock Text="(Folder): Input file's folder, (FileName): Input file's name, (Ext): File extension." Margin="10,0,0,10" FontStyle="Italic" />
+    
+    <!-- Conversion Button -->
+    <Button Content="Start Conversion" Command="{Binding StartConversionCommand}" Margin="10" />
+  </StackPanel>
+</Window>
