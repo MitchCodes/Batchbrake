@@ -165,9 +165,13 @@ namespace Batchbrake.ViewModels
         {
             _filePickerService = filePickerService;
 
-            Task.Run(LoadPresetsAsync);
+            // Load HandBrake settings first, then presets (which depend on the settings)
+            Task.Run(async () =>
+            {
+                await LoadHandBrakeSettingsAsync();
+                await LoadPresetsAsync();
+            });
             Task.Run(LoadFFmpegSettingsAsync);
-            Task.Run(LoadHandBrakeSettingsAsync);
             Task.Run(LoadPreferencesAsync);
             Task.Run(LoadSessionAsync);
         }
@@ -176,8 +180,58 @@ namespace Batchbrake.ViewModels
         {
             try
             {
+                // Debug: Show what custom preset files are configured
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Custom preset files configured: {(_handBrakeSettings.CustomPresetFiles?.Count ?? 0)}\n";
+                    if (_handBrakeSettings.CustomPresetFiles != null)
+                    {
+                        foreach (var file in _handBrakeSettings.CustomPresetFiles)
+                        {
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: - {file} (exists: {System.IO.File.Exists(file)})\n";
+                        }
+                    }
+                    if (!string.IsNullOrWhiteSpace(_handBrakeSettings.CustomPresetFile))
+                    {
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Legacy custom preset file: {_handBrakeSettings.CustomPresetFile} (exists: {System.IO.File.Exists(_handBrakeSettings.CustomPresetFile)})\n";
+                    }
+                });
+                
                 var handbrakeCliWrapper = new HandbrakeCLIWrapper(_handBrakeSettings);
+                
+                // Subscribe to debug messages
+                handbrakeCliWrapper.DebugMessage += (sender, message) =>
+                {
+                    RxApp.MainThreadScheduler.Schedule(() =>
+                    {
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: {message}\n";
+                    });
+                };
+                
                 var presets = await handbrakeCliWrapper.GetAvailablePresetsAsync();
+                
+                System.Diagnostics.Debug.WriteLine($"MainWindow LoadPresetsAsync: Received {presets.Sum(p => p.Value.Count)} presets from {presets.Count} categories");
+                
+                // Also log to UI for debugging
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Received {presets.Sum(p => p.Value.Count)} presets from {presets.Count} categories\n";
+                });
+                
+                foreach (var cat in presets)
+                {
+                    System.Diagnostics.Debug.WriteLine($"MainWindow Category '{cat.Key}': {string.Join(", ", cat.Value)}");
+                    
+                    // Also log to UI for debugging (first few presets only to avoid spam)
+                    if (cat.Value.Count > 0)
+                    {
+                        var presetSample = cat.Value.Take(3);
+                        RxApp.MainThreadScheduler.Schedule(() =>
+                        {
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Category '{cat.Key}' has {cat.Value.Count} presets: {string.Join(", ", presetSample)}{(cat.Value.Count > 3 ? "..." : "")}\n";
+                        });
+                    }
+                }
 
                 RxApp.MainThreadScheduler.Schedule(() =>
                 {
@@ -201,6 +255,14 @@ namespace Batchbrake.ViewModels
                                 customPresetCount++;
                             }
                         }
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"MainWindow: Final preset collection has {Presets.Count} items");
+                    
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Final preset collection has {Presets.Count} items\n";
+                    if (Presets.Count > 0)
+                    {
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: First few presets: {string.Join(", ", Presets.Take(5))}\n";
                     }
 
                     DefaultPreset = Presets.FirstOrDefault();
@@ -855,14 +917,47 @@ namespace Batchbrake.ViewModels
                     "handbrake-settings.json"
                 );
 
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Loading HandBrake settings from: {settingsPath}\n";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Settings file exists: {File.Exists(settingsPath)}\n";
+                });
+
                 if (File.Exists(settingsPath))
                 {
                     var json = await File.ReadAllTextAsync(settingsPath);
+                    
+                    RxApp.MainThreadScheduler.Schedule(() =>
+                    {
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Settings JSON length: {json.Length}\n";
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Settings JSON preview: {json.Substring(0, Math.Min(200, json.Length))}...\n";
+                    });
+                    
                     var settings = JsonSerializer.Deserialize<HandBrakeSettings>(json);
                     if (settings != null)
                     {
+                        RxApp.MainThreadScheduler.Schedule(() =>
+                        {
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Deserialized settings - CustomPresetFiles count: {settings.CustomPresetFiles?.Count ?? 0}\n";
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Deserialized settings - CustomPresetFile (legacy): '{settings.CustomPresetFile}'\n";
+                        });
+                        
                         _handBrakeSettings = settings;
                     }
+                    else
+                    {
+                        RxApp.MainThreadScheduler.Schedule(() =>
+                        {
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Failed to deserialize settings - settings is null\n";
+                        });
+                    }
+                }
+                else
+                {
+                    RxApp.MainThreadScheduler.Schedule(() =>
+                    {
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Settings file does not exist, using default settings\n";
+                    });
                 }
             }
             catch (Exception ex)
@@ -889,7 +984,21 @@ namespace Batchbrake.ViewModels
                 }
 
                 var settingsPath = Path.Combine(settingsDir, "handbrake-settings.json");
+                
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Saving HandBrake settings to: {settingsPath}\n";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: CustomPresetFiles count before save: {_handBrakeSettings.CustomPresetFiles?.Count ?? 0}\n";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: CustomPresetFile (legacy) before save: '{_handBrakeSettings.CustomPresetFile}'\n";
+                });
+                
                 var json = JsonSerializer.Serialize(_handBrakeSettings, new JsonSerializerOptions { WriteIndented = true });
+                
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Serialized JSON length: {json.Length}\n";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] DEBUG: Serialized JSON preview: {json.Substring(0, Math.Min(300, json.Length))}...\n";
+                });
                 await File.WriteAllTextAsync(settingsPath, json);
             }
             catch (Exception ex)

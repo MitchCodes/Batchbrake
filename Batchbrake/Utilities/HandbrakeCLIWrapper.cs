@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.Text.RegularExpressions;
 using System.Linq;
+using System.Text.Json;
 using Batchbrake.Models;
 
 namespace Batchbrake.Utilities
@@ -17,6 +18,8 @@ namespace Batchbrake.Utilities
         private readonly HandBrakeSettings _settings;
         private Process _currentProcess;
         private CancellationTokenSource _cancellationTokenSource;
+        
+        public event EventHandler<string> DebugMessage;
 
         public event EventHandler<ConversionProgressEventArgs> ProgressChanged;
         public event EventHandler<ConversionCompletedEventArgs> ConversionCompleted;
@@ -25,12 +28,29 @@ namespace Batchbrake.Utilities
         {
             _handbrakeCLIPath = handbrakeCLIPath;
             _settings = new HandBrakeSettings { HandBrakeCLIPath = handbrakeCLIPath };
+            
+            // Debug output for string constructor
+            System.Diagnostics.Debug.WriteLine($"HandbrakeCLIWrapper string constructor: Using default settings with no custom presets");
+            Console.WriteLine($"[HandBrakeCLI] String Constructor: Using default settings with no custom presets");
         }
 
         public HandbrakeCLIWrapper(HandBrakeSettings settings)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _handbrakeCLIPath = settings.HandBrakeCLIPath;
+            
+            // Debug output for constructor
+            System.Diagnostics.Debug.WriteLine($"HandbrakeCLIWrapper constructor: CustomPresetFiles = {(_settings.CustomPresetFiles == null ? "null" : _settings.CustomPresetFiles.Count.ToString())}");
+            Console.WriteLine($"[HandBrakeCLI] Constructor: CustomPresetFiles = {(_settings.CustomPresetFiles == null ? "null" : _settings.CustomPresetFiles.Count.ToString())}");
+            
+            if (_settings.CustomPresetFiles != null)
+            {
+                foreach (var file in _settings.CustomPresetFiles)
+                {
+                    System.Diagnostics.Debug.WriteLine($"HandbrakeCLIWrapper constructor: File = {file}");
+                    Console.WriteLine($"[HandBrakeCLI] Constructor: File = {file}");
+                }
+            }
         }
 
         /// <summary>
@@ -63,11 +83,29 @@ namespace Batchbrake.Utilities
                 // Check for multiple custom preset files first
                 var validPresetFiles = new List<string>();
                 
-                // Add files from the new list
+                System.Diagnostics.Debug.WriteLine($"DEBUG: Checking custom preset files...");
+                Console.WriteLine($"[HandBrakeCLI] DEBUG: Checking custom preset files...");
+                
+                System.Diagnostics.Debug.WriteLine($"DEBUG: _settings.CustomPresetFiles is null: {_settings.CustomPresetFiles == null}");
+                Console.WriteLine($"[HandBrakeCLI] DEBUG: _settings.CustomPresetFiles is null: {_settings.CustomPresetFiles == null}");
+                
                 if (_settings.CustomPresetFiles != null)
                 {
+                    System.Diagnostics.Debug.WriteLine($"DEBUG: _settings.CustomPresetFiles count: {_settings.CustomPresetFiles.Count}");
+                    Console.WriteLine($"[HandBrakeCLI] DEBUG: _settings.CustomPresetFiles count: {_settings.CustomPresetFiles.Count}");
+                    
+                    foreach (var file in _settings.CustomPresetFiles)
+                    {
+                        var exists = File.Exists(file);
+                        System.Diagnostics.Debug.WriteLine($"DEBUG: Checking file: '{file}', exists: {exists}");
+                        Console.WriteLine($"[HandBrakeCLI] DEBUG: Checking file: '{file}', exists: {exists}");
+                    }
                     validPresetFiles.AddRange(_settings.CustomPresetFiles.Where(f => !string.IsNullOrWhiteSpace(f) && File.Exists(f)));
                 }
+                
+                var legacyExists = !string.IsNullOrWhiteSpace(_settings.CustomPresetFile) ? File.Exists(_settings.CustomPresetFile) : false;
+                System.Diagnostics.Debug.WriteLine($"DEBUG: _settings.CustomPresetFile: '{_settings.CustomPresetFile}', exists: {(legacyExists ? "True" : "False/N/A")}");
+                Console.WriteLine($"[HandBrakeCLI] DEBUG: _settings.CustomPresetFile: '{_settings.CustomPresetFile}', exists: {(legacyExists ? "True" : "False/N/A")}");
                 
                 // Add legacy single file for backward compatibility
                 if (!string.IsNullOrWhiteSpace(_settings.CustomPresetFile) && File.Exists(_settings.CustomPresetFile))
@@ -75,17 +113,117 @@ namespace Batchbrake.Utilities
                     if (!validPresetFiles.Contains(_settings.CustomPresetFile))
                     {
                         validPresetFiles.Add(_settings.CustomPresetFile);
+                        Console.WriteLine($"[HandBrakeCLI] DEBUG: Added legacy file to valid list");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[HandBrakeCLI] DEBUG: Legacy file already in valid list");
                     }
                 }
                 
+                System.Diagnostics.Debug.WriteLine($"DEBUG: Total valid preset files found: {validPresetFiles.Count}");
+                
+                // Also log to console for debugging visibility
+                Console.WriteLine($"[HandBrakeCLI] DEBUG: Total valid preset files found: {validPresetFiles.Count}");
+                DebugMessage?.Invoke(this, $"HandBrakeCLI: Total valid preset files found: {validPresetFiles.Count}");
+                
+                foreach (var file in validPresetFiles)
+                {
+                    Console.WriteLine($"[HandBrakeCLI] DEBUG: Valid file: {file}");
+                    DebugMessage?.Invoke(this, $"HandBrakeCLI: Valid preset file: {file}");
+                }
+                
+                Dictionary<string, List<string>> allPresets = new Dictionary<string, List<string>>();
+                
                 if (validPresetFiles.Any())
                 {
-                    // Import multiple preset files
-                    var importArgs = string.Join(" ", validPresetFiles.Select(f => $"--preset-import-file \"{f}\""));
-                    command = $"--preset-list {importArgs}";
+                    // Import preset files one at a time and combine results
                     System.Diagnostics.Debug.WriteLine($"Loading presets from {validPresetFiles.Count} custom file(s): {string.Join(", ", validPresetFiles)}");
+                    Console.WriteLine($"[HandBrakeCLI] Loading presets from {validPresetFiles.Count} custom file(s)");
+                    DebugMessage?.Invoke(this, $"HandBrakeCLI: Loading presets from {validPresetFiles.Count} custom file(s)");
+                    
+                    foreach (var presetFile in validPresetFiles)
+                    {
+                        try
+                        {
+                            DebugMessage?.Invoke(this, $"HandBrakeCLI: Processing custom preset file: {presetFile}");
+                            
+                            // Try to directly parse the JSON preset file
+                            var customPresets = await ParseCustomPresetFileAsync(presetFile);
+                            DebugMessage?.Invoke(this, $"HandBrakeCLI: Found {customPresets.Count} custom presets in JSON file");
+                            
+                            if (customPresets.Any())
+                            {
+                                // Add custom presets to a special category
+                                var customCategoryName = "Custom";
+                                if (!allPresets.ContainsKey(customCategoryName))
+                                {
+                                    allPresets[customCategoryName] = new List<string>();
+                                }
+                                
+                                foreach (var preset in customPresets)
+                                {
+                                    if (!allPresets[customCategoryName].Contains(preset))
+                                    {
+                                        allPresets[customCategoryName].Add(preset);
+                                        DebugMessage?.Invoke(this, $"HandBrakeCLI: Added custom preset: {preset}");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                DebugMessage?.Invoke(this, $"HandBrakeCLI: No presets found in JSON file, trying HandBrake CLI method");
+                                
+                                // Fallback to original HandBrake CLI method
+                                command = $"--preset-import-file \"{presetFile}\" --preset-list";
+                                System.Diagnostics.Debug.WriteLine($"HandBrake command for file {presetFile}: {command}");
+                                DebugMessage?.Invoke(this, $"HandBrakeCLI: Executing command: {command}");
+                                
+                                var fileOutput = await ExecuteHandbrakeCommandAsync(command);
+                                System.Diagnostics.Debug.WriteLine($"HandBrake output length for {presetFile}: {fileOutput.Length}");
+                                Console.WriteLine($"[HandBrakeCLI] DEBUG: HandBrake output length for {presetFile}: {fileOutput.Length}");
+                                DebugMessage?.Invoke(this, $"HandBrakeCLI: Command output length: {fileOutput.Length}");
+                                
+                                var filePresets = ParsePresetOutput(fileOutput);
+                                System.Diagnostics.Debug.WriteLine($"Parsed {filePresets.Sum(p => p.Value.Count)} presets from {filePresets.Count} categories in {presetFile}");
+                                Console.WriteLine($"[HandBrakeCLI] DEBUG: Parsed {filePresets.Sum(p => p.Value.Count)} presets from {filePresets.Count} categories in {presetFile}");
+                                DebugMessage?.Invoke(this, $"HandBrakeCLI: Parsed {filePresets.Sum(p => p.Value.Count)} presets from {filePresets.Count} categories");
+                                
+                                // Merge presets from HandBrake CLI output
+                                foreach (var category in filePresets)
+                                {
+                                    if (!allPresets.ContainsKey(category.Key))
+                                    {
+                                        allPresets[category.Key] = new List<string>();
+                                    }
+                                    
+                                    foreach (var preset in category.Value)
+                                    {
+                                        if (!allPresets[category.Key].Contains(preset))
+                                        {
+                                            allPresets[category.Key].Add(preset);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception fileEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error loading presets from {presetFile}: {fileEx.Message}");
+                            DebugMessage?.Invoke(this, $"HandBrakeCLI: Error loading presets from {presetFile}: {fileEx.Message}");
+                        }
+                    }
                 }
-                else if (importFromGui)
+                
+                // Always load built-in presets and merge with custom presets
+                Console.WriteLine($"[HandBrakeCLI] DEBUG: After custom preset processing, allPresets.Count = {allPresets.Count}");
+                DebugMessage?.Invoke(this, $"HandBrakeCLI: After custom preset processing, found {allPresets.Count} preset categories");
+                
+                // Load built-in presets regardless of whether we have custom presets
+                Console.WriteLine($"[HandBrakeCLI] DEBUG: Loading built-in presets");
+                DebugMessage?.Invoke(this, $"HandBrakeCLI: Loading built-in presets");
+                
+                if (importFromGui)
                 {
                     command = "--preset-list --preset-import-gui";
                     System.Diagnostics.Debug.WriteLine("Attempting to import GUI presets");
@@ -93,15 +231,40 @@ namespace Batchbrake.Utilities
                 else
                 {
                     command = "--preset-list";
+                    System.Diagnostics.Debug.WriteLine("Using built-in presets only");
                 }
                 
                 var output = await ExecuteHandbrakeCommandAsync(command);
-                var presets = ParsePresetOutput(output);
+                System.Diagnostics.Debug.WriteLine($"HandBrake command: {command}");
+                System.Diagnostics.Debug.WriteLine($"HandBrake output length: {output.Length}");
+                System.Diagnostics.Debug.WriteLine($"HandBrake output preview: {output.Substring(0, Math.Min(500, output.Length))}");
                 
-                // If we got presets, return them
-                if (presets.Any())
+                var builtInPresets = ParsePresetOutput(output);
+                System.Diagnostics.Debug.WriteLine($"Parsed {builtInPresets.Sum(p => p.Value.Count)} built-in presets from {builtInPresets.Count} categories");
+                DebugMessage?.Invoke(this, $"HandBrakeCLI: Parsed {builtInPresets.Sum(p => p.Value.Count)} built-in presets from {builtInPresets.Count} categories");
+                
+                // Merge built-in presets with custom presets
+                foreach (var category in builtInPresets)
                 {
-                    return presets;
+                    if (!allPresets.ContainsKey(category.Key))
+                    {
+                        allPresets[category.Key] = new List<string>();
+                    }
+                    
+                    foreach (var preset in category.Value)
+                    {
+                        if (!allPresets[category.Key].Contains(preset))
+                        {
+                            allPresets[category.Key].Add(preset);
+                        }
+                    }
+                }
+                
+                // Return merged presets
+                DebugMessage?.Invoke(this, $"HandBrakeCLI: Final merged presets: {allPresets.Sum(p => p.Value.Count)} presets from {allPresets.Count} categories");
+                if (allPresets.Any())
+                {
+                    return allPresets;
                 }
             }
             catch (Exception ex)
@@ -122,6 +285,53 @@ namespace Batchbrake.Utilities
                 // If both methods fail, throw the last exception
                 throw lastException ?? ex;
             }
+        }
+
+        /// <summary>
+        /// Parses a custom preset JSON file to extract preset names.
+        /// </summary>
+        /// <param name="presetFilePath">Path to the JSON preset file.</param>
+        /// <returns>A list of preset names found in the file.</returns>
+        private async Task<List<string>> ParseCustomPresetFileAsync(string presetFilePath)
+        {
+            var presetNames = new List<string>();
+            
+            try
+            {
+                var json = await File.ReadAllTextAsync(presetFilePath);
+                DebugMessage?.Invoke(this, $"HandBrakeCLI: Read JSON file, length: {json.Length}");
+                
+                using (var doc = JsonDocument.Parse(json))
+                {
+                    if (doc.RootElement.TryGetProperty("PresetList", out var presetList))
+                    {
+                        DebugMessage?.Invoke(this, $"HandBrakeCLI: Found PresetList array");
+                        
+                        foreach (var preset in presetList.EnumerateArray())
+                        {
+                            if (preset.TryGetProperty("PresetName", out var nameProperty))
+                            {
+                                var presetName = nameProperty.GetString();
+                                if (!string.IsNullOrWhiteSpace(presetName))
+                                {
+                                    presetNames.Add(presetName);
+                                    DebugMessage?.Invoke(this, $"HandBrakeCLI: Found preset name: {presetName}");
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        DebugMessage?.Invoke(this, $"HandBrakeCLI: No PresetList found in JSON");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugMessage?.Invoke(this, $"HandBrakeCLI: Error parsing JSON file: {ex.Message}");
+            }
+            
+            return presetNames;
         }
 
         /// <summary>

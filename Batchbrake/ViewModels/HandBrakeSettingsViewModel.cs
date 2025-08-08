@@ -347,12 +347,27 @@ namespace Batchbrake.ViewModels
 
         private void RemovePresetFile(string filePath)
         {
+            System.Diagnostics.Debug.WriteLine($"RemovePresetFile called with: {filePath}");
             if (!string.IsNullOrWhiteSpace(filePath))
             {
-                CustomPresetFiles.Remove(filePath);
+                var removed = CustomPresetFiles.Remove(filePath);
+                System.Diagnostics.Debug.WriteLine($"File removed from UI collection: {removed}, remaining files: {CustomPresetFiles.Count}");
+                
+                // Also remove from legacy field if it matches
+                if (_customPresetFile == filePath)
+                {
+                    CustomPresetFile = "";
+                    System.Diagnostics.Debug.WriteLine("Also cleared legacy CustomPresetFile field");
+                }
                 
                 // Reload presets without the removed file
                 LoadAvailablePresets();
+                
+                System.Diagnostics.Debug.WriteLine($"After removal, CustomPresetFiles has {CustomPresetFiles.Count} items");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("RemovePresetFile called with null/empty path");
             }
         }
 
