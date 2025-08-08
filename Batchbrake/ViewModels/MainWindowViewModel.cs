@@ -12,11 +12,11 @@ using System.Linq;
 using System;
 using System.Reactive;
 using System.IO;
-using Avalonia.Controls.Shapes;
 using System.Diagnostics;
 using System.Reactive.Concurrency;
 using System.Collections.Specialized;
 using System.Threading;
+using System.Text.Json;
 
 namespace Batchbrake.ViewModels
 {
@@ -24,6 +24,7 @@ namespace Batchbrake.ViewModels
     {
         private IFilePickerService _filePickerService;
         private CancellationTokenSource? _conversionCancellationTokenSource;
+        private FFmpegSettings _ffmpegSettings = new FFmpegSettings();
 
         private ObservableCollection<VideoModelViewModel> _videoQueue = new ObservableCollection<VideoModelViewModel>();
         public ObservableCollection<VideoModelViewModel> VideoQueue
@@ -145,6 +146,7 @@ namespace Batchbrake.ViewModels
             _filePickerService = filePickerService;
 
             Task.Run(LoadPresetsAsync);
+            Task.Run(LoadFFmpegSettingsAsync);
         }
 
         private async Task LoadPresetsAsync()
@@ -294,11 +296,32 @@ namespace Batchbrake.ViewModels
             LogOutput += $"[{DateTime.Now:HH:mm:ss}] Cleared {completedVideos.Count} completed videos from queue\n";
         });
 
+        // Open FFmpeg Settings Command
+        public ReactiveCommand<Unit, Unit> OpenFFmpegSettingsCommand => ReactiveCommand.CreateFromTask(async () =>
+        {
+            var window = new FFmpegSettingsWindow();
+            var viewModel = new FFmpegSettingsViewModel(_ffmpegSettings, _filePickerService, window);
+            window.DataContext = viewModel;
+            
+            // Find the main window to set as owner
+            var mainWindow = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            if (mainWindow?.MainWindow != null)
+            {
+                var result = await window.ShowDialog<bool>(mainWindow.MainWindow);
+                if (result)
+                {
+                    // Settings were saved, save to file
+                    await SaveFFmpegSettingsAsync();
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] FFmpeg settings updated\n";
+                }
+            }
+        });
+
         // Retrieve video info via FFmpeg wrapper
         private async Task<VideoInfoModel> GetVideoInfoAsync(string filePath)
         {
             // Call FFmpeg wrapper to get video information (e.g., duration, resolution, etc.)
-            var ffmpegWrapper = new FFmpegWrapper("ffmpeg");
+            var ffmpegWrapper = new FFmpegWrapper(_ffmpegSettings);
             return await ffmpegWrapper.GetVideoInfoAsync(filePath);
         }
 
@@ -533,6 +556,62 @@ namespace Batchbrake.ViewModels
             this.RaisePropertyChanged(nameof(ProcessingCount));
             this.RaisePropertyChanged(nameof(CompletedCount));
             this.RaisePropertyChanged(nameof(CanStartConversion));
+        }
+
+        private async Task LoadFFmpegSettingsAsync()
+        {
+            try
+            {
+                var settingsPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Batchbrake",
+                    "ffmpeg-settings.json"
+                );
+
+                if (File.Exists(settingsPath))
+                {
+                    var json = await File.ReadAllTextAsync(settingsPath);
+                    var settings = JsonSerializer.Deserialize<FFmpegSettings>(json);
+                    if (settings != null)
+                    {
+                        _ffmpegSettings = settings;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to load FFmpeg settings: {ex.Message}\n";
+                });
+            }
+        }
+
+        private async Task SaveFFmpegSettingsAsync()
+        {
+            try
+            {
+                var settingsDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Batchbrake"
+                );
+                
+                if (!Directory.Exists(settingsDir))
+                {
+                    Directory.CreateDirectory(settingsDir);
+                }
+
+                var settingsPath = Path.Combine(settingsDir, "ffmpeg-settings.json");
+                var json = JsonSerializer.Serialize(_ffmpegSettings, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(settingsPath, json);
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to save FFmpeg settings: {ex.Message}\n";
+                });
+            }
         }
 
         public void Dispose()

@@ -1,0 +1,224 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Batchbrake.ViewModels"
+        x:Class="Batchbrake.FFmpegSettingsWindow"
+        x:DataType="vm:FFmpegSettingsViewModel"
+        Title="FFmpeg Settings"
+        Width="600" Height="550"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+  
+  <Window.Styles>
+    <Style Selector="TextBlock.section-header">
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,15,0,10"/>
+      <Setter Property="Foreground" Value="#333333"/>
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="0,0,10,0"/>
+      <Setter Property="MinWidth" Value="150"/>
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Padding" Value="8,6"/>
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="MinHeight" Value="32"/>
+    </Style>
+    <Style Selector="NumericUpDown">
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="MinHeight" Value="32"/>
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Margin" Value="0,5"/>
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <!-- Executable Paths Section -->
+        <TextBlock Classes="section-header" Text="Executable Paths"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel Spacing="10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="FFmpeg Path:"/>
+              <TextBox Grid.Column="1" Text="{Binding FFmpegPath}" />
+              <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseFFmpegCommand}" Margin="5,0,0,0"/>
+            </Grid>
+            
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="FFprobe Path:"/>
+              <TextBox Grid.Column="1" Text="{Binding FFprobePath}" />
+              <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseFFprobeCommand}" Margin="5,0,0,0"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- Encoding Settings Section -->
+        <TextBlock Classes="section-header" Text="Encoding Settings"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel Spacing="10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="200"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Thread Count:"/>
+              <Grid Grid.Column="1">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <NumericUpDown Grid.Column="0" 
+                             Minimum="0" Maximum="32" 
+                             Value="{Binding ThreadCount}" />
+                <TextBlock Grid.Column="1" Text="(0 = auto)" VerticalAlignment="Center" 
+                         Foreground="#666666" FontSize="11" Margin="10,0,0,0"/>
+              </Grid>
+            </Grid>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="200"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Video Codec:"/>
+              <ComboBox Grid.Column="1" SelectedItem="{Binding VideoCodec}">
+                <ComboBoxItem>libx264</ComboBoxItem>
+                <ComboBoxItem>libx265</ComboBoxItem>
+                <ComboBoxItem>libvpx-vp9</ComboBoxItem>
+                <ComboBoxItem>libaom-av1</ComboBoxItem>
+                <ComboBoxItem>copy</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="200"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Audio Codec:"/>
+              <ComboBox Grid.Column="1" SelectedItem="{Binding AudioCodec}">
+                <ComboBoxItem>aac</ComboBoxItem>
+                <ComboBoxItem>mp3</ComboBoxItem>
+                <ComboBoxItem>opus</ComboBoxItem>
+                <ComboBoxItem>vorbis</ComboBoxItem>
+                <ComboBoxItem>copy</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+
+            <CheckBox Content="Overwrite output files without asking" 
+                    IsChecked="{Binding OverwriteOutput}"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Hardware Acceleration Section -->
+        <TextBlock Classes="section-header" Text="Hardware Acceleration"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel Spacing="10">
+            <CheckBox Content="Enable hardware acceleration" 
+                    IsChecked="{Binding HardwareAcceleration}"/>
+            
+            <Grid IsEnabled="{Binding HardwareAcceleration}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="200"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Method:"/>
+              <ComboBox Grid.Column="1" SelectedItem="{Binding HardwareAccelerationMethod}">
+                <ComboBoxItem>auto</ComboBoxItem>
+                <ComboBoxItem>cuda</ComboBoxItem>
+                <ComboBoxItem>nvenc</ComboBoxItem>
+                <ComboBoxItem>qsv</ComboBoxItem>
+                <ComboBoxItem>vaapi</ComboBoxItem>
+                <ComboBoxItem>dxva2</ComboBoxItem>
+                <ComboBoxItem>videotoolbox</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- Advanced Settings Section -->
+        <TextBlock Classes="section-header" Text="Advanced Settings"/>
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15">
+          <StackPanel Spacing="10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="200"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Classes="field-label" Text="Log Level:"/>
+              <ComboBox Grid.Column="1" SelectedIndex="{Binding LogLevel}">
+                <ComboBoxItem>Quiet</ComboBoxItem>
+                <ComboBoxItem>Error</ComboBoxItem>
+                <ComboBoxItem>Warning</ComboBoxItem>
+                <ComboBoxItem>Info</ComboBoxItem>
+                <ComboBoxItem>Verbose</ComboBoxItem>
+                <ComboBoxItem>Debug</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Grid.Column="0" Classes="field-label" Text="Additional Arguments:" VerticalAlignment="Top"/>
+              <TextBox Grid.Row="0" Grid.Column="1" 
+                     Text="{Binding AdditionalArguments}" 
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     Height="60"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" 
+                       Text="Enter any additional FFmpeg command-line arguments"
+                       FontSize="11" Foreground="#666666" Margin="0,5,0,0"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Buttons -->
+    <Border Grid.Row="1" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Margin="-20,15,-20,-20" Padding="20,15">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        
+        <Button Grid.Column="0" Content="Reset to Defaults" Command="{Binding ResetToDefaultsCommand}"/>
+        
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+          <Button Content="OK" Command="{Binding SaveCommand}" Classes="primary" MinWidth="80"/>
+          <Button Content="Cancel" Command="{Binding CancelCommand}" MinWidth="80"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

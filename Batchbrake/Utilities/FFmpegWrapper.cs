@@ -13,6 +13,7 @@ namespace Batchbrake.Utilities
     public class FFmpegWrapper
     {
         private readonly string _ffmpegPath;
+        private readonly FFmpegSettings _settings;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FFmpegService"/> class.
@@ -21,6 +22,17 @@ namespace Batchbrake.Utilities
         public FFmpegWrapper(string ffmpegPath)
         {
             _ffmpegPath = ffmpegPath ?? throw new ArgumentNullException(nameof(ffmpegPath));
+            _settings = new FFmpegSettings { FFmpegPath = ffmpegPath };
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="FFmpegService"/> class with settings.
+        /// </summary>
+        /// <param name="settings">The FFmpeg settings.</param>
+        public FFmpegWrapper(FFmpegSettings settings)
+        {
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _ffmpegPath = settings.FFmpegPath;
         }
 
         /// <summary>
@@ -66,11 +78,18 @@ namespace Batchbrake.Utilities
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
                 
+            // Use ffprobe if available for better metadata extraction
+            var probePath = _settings?.FFprobePath ?? "ffprobe";
+            var useFFprobe = !string.IsNullOrEmpty(probePath) && probePath != "ffprobe";
+            
             var startInfo = new ProcessStartInfo
             {
-                FileName = _ffmpegPath,
-                Arguments = $"-i \"{filePath}\"",
+                FileName = useFFprobe ? probePath : _ffmpegPath,
+                Arguments = useFFprobe 
+                    ? $"-v quiet -print_format json -show_format -show_streams \"{filePath}\""
+                    : $"-i \"{filePath}\"",
                 RedirectStandardError = true, // FFmpeg outputs metadata to standard error
+                RedirectStandardOutput = useFFprobe,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };

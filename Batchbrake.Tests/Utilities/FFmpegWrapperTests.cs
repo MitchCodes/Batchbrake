@@ -141,7 +141,7 @@ namespace Batchbrake.Tests.Utilities
         public void FFmpegWrapper_DoesNotAcceptNullPath()
         {
             // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => new FFmpegWrapper(null!));
+            Assert.Throws<ArgumentNullException>(() => new FFmpegWrapper((string)null!));
         }
 
         [Theory]
