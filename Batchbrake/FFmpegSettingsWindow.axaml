@@ -129,6 +129,12 @@
 
             <CheckBox Content="Overwrite output files without asking" 
                     IsChecked="{Binding OverwriteOutput}"/>
+            
+            <CheckBox Content="Use FFmpeg as primary conversion engine (instead of HandBrake)" 
+                    IsChecked="{Binding UseAsConversionEngine}"/>
+            
+            <TextBlock FontSize="11" Foreground="#666666" Margin="0,5,0,0"
+                     Text="Note: When enabled, video conversions will use FFmpeg with these settings instead of HandBrakeCLI."/>
           </StackPanel>
         </Border>
 

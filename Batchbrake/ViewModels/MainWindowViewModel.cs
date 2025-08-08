@@ -356,14 +356,29 @@ namespace Batchbrake.ViewModels
                 LogOutput += $"[{DateTime.Now:HH:mm:ss}] Start Conversion button clicked\n";
             });
             // Initial UI update on main thread - check availability first
-            if (!await IsHandbrakeCLIAvailableAsync())
+            if (_ffmpegSettings.UseAsConversionEngine)
             {
-                RxApp.MainThreadScheduler.Schedule(() =>
+                if (!await IsFFmpegAvailableAsync())
                 {
-                    StatusText = "HandBrakeCLI not found";
-                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] ERROR: HandBrakeCLI not found at specified path\n";
-                });
-                return;
+                    RxApp.MainThreadScheduler.Schedule(() =>
+                    {
+                        StatusText = "FFmpeg not found";
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] ERROR: FFmpeg not found at specified path\n";
+                    });
+                    return;
+                }
+            }
+            else
+            {
+                if (!await IsHandbrakeCLIAvailableAsync())
+                {
+                    RxApp.MainThreadScheduler.Schedule(() =>
+                    {
+                        StatusText = "HandBrakeCLI not found";
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] ERROR: HandBrakeCLI not found at specified path\n";
+                    });
+                    return;
+                }
             }
 
             // Create cancellation token for this conversion batch
@@ -492,13 +507,37 @@ namespace Batchbrake.ViewModels
                     });
                 };
                 
-                // Run the actual conversion on a background thread with cancellation support
-                await handbrakeCliWrapper.ConvertVideoAsync(
-                    video.InputFilePath!, 
-                    video.OutputFilePath!, 
-                    video.Preset,
-                    null,
-                    cancellationToken);
+                // Choose conversion engine based on settings
+                bool conversionResult;
+                if (_ffmpegSettings.UseAsConversionEngine)
+                {
+                    // Use FFmpeg for conversion
+                    var ffmpegWrapper = new FFmpegWrapper(_ffmpegSettings);
+                    conversionResult = await ffmpegWrapper.ConvertVideoAsync(
+                        video.InputFilePath!,
+                        video.OutputFilePath!,
+                        progress => {
+                            RxApp.MainThreadScheduler.Schedule(() => {
+                                video.ConversionProgress = (int)progress;
+                            });
+                        },
+                        cancellationToken);
+                }
+                else
+                {
+                    // Use HandBrake for conversion
+                    conversionResult = await handbrakeCliWrapper.ConvertVideoAsync(
+                        video.InputFilePath!, 
+                        video.OutputFilePath!, 
+                        video.Preset,
+                        null,
+                        cancellationToken);
+                }
+
+                if (!conversionResult)
+                {
+                    throw new Exception("Conversion failed");
+                }
             }
             catch (OperationCanceledException)
             {
@@ -530,8 +569,22 @@ namespace Batchbrake.ViewModels
         {
             try
             {
-                var handbrakeWrapper = new HandbrakeCLIWrapper();
+                var handbrakeWrapper = new HandbrakeCLIWrapper(_handBrakeSettings);
                 return await handbrakeWrapper.IsAvailableAsync();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Auto-detect FFmpeg
+        private async Task<bool> IsFFmpegAvailableAsync()
+        {
+            try
+            {
+                var ffmpegWrapper = new FFmpegWrapper(_ffmpegSettings);
+                return await ffmpegWrapper.IsFFmpegAvailableAsync();
             }
             catch
             {

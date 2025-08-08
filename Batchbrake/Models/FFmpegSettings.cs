@@ -15,6 +15,7 @@ namespace Batchbrake.Models
         private string _hardwareAccelerationMethod = "auto";
         private int _logLevel = 2;
         private bool _overwriteOutput = true;
+        private bool _useAsConversionEngine = false;
 
         public string FFmpegPath
         {
@@ -146,6 +147,19 @@ namespace Batchbrake.Models
             }
         }
 
+        public bool UseAsConversionEngine
+        {
+            get => _useAsConversionEngine;
+            set
+            {
+                if (_useAsConversionEngine != value)
+                {
+                    _useAsConversionEngine = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -166,7 +180,8 @@ namespace Batchbrake.Models
                 HardwareAcceleration = HardwareAcceleration,
                 HardwareAccelerationMethod = HardwareAccelerationMethod,
                 LogLevel = LogLevel,
-                OverwriteOutput = OverwriteOutput
+                OverwriteOutput = OverwriteOutput,
+                UseAsConversionEngine = UseAsConversionEngine
             };
         }
     }

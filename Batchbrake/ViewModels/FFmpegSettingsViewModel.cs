@@ -25,6 +25,7 @@ namespace Batchbrake.ViewModels
         private string _hardwareAccelerationMethod;
         private int _logLevel;
         private bool _overwriteOutput;
+        private bool _useAsConversionEngine;
 
         public FFmpegSettingsViewModel(FFmpegSettings settings, IFilePickerService filePickerService, Window window)
         {
@@ -42,6 +43,7 @@ namespace Batchbrake.ViewModels
             HardwareAccelerationMethod = settings.HardwareAccelerationMethod;
             LogLevel = settings.LogLevel;
             OverwriteOutput = settings.OverwriteOutput;
+            UseAsConversionEngine = settings.UseAsConversionEngine;
 
             BrowseFFmpegCommand = ReactiveCommand.CreateFromTask(BrowseFFmpeg);
             BrowseFFprobeCommand = ReactiveCommand.CreateFromTask(BrowseFFprobe);
@@ -110,6 +112,12 @@ namespace Batchbrake.ViewModels
             set => this.RaiseAndSetIfChanged(ref _overwriteOutput, value);
         }
 
+        public bool UseAsConversionEngine
+        {
+            get => _useAsConversionEngine;
+            set => this.RaiseAndSetIfChanged(ref _useAsConversionEngine, value);
+        }
+
         public ReactiveCommand<Unit, Unit> BrowseFFmpegCommand { get; }
         public ReactiveCommand<Unit, Unit> BrowseFFprobeCommand { get; }
         public ReactiveCommand<Unit, Unit> SaveCommand { get; }
@@ -172,6 +180,7 @@ namespace Batchbrake.ViewModels
             _originalSettings.HardwareAccelerationMethod = HardwareAccelerationMethod;
             _originalSettings.LogLevel = LogLevel;
             _originalSettings.OverwriteOutput = OverwriteOutput;
+            _originalSettings.UseAsConversionEngine = UseAsConversionEngine;
 
             _window.Close(true);
         }
@@ -193,6 +202,7 @@ namespace Batchbrake.ViewModels
             HardwareAccelerationMethod = "auto";
             LogLevel = 2;
             OverwriteOutput = true;
+            UseAsConversionEngine = false;
         }
     }
 }
