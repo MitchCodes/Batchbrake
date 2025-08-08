@@ -43,20 +43,8 @@ namespace Batchbrake.Utilities
         /// <returns>A task that represents the asynchronous operation.</returns>
         public async Task<bool> ConvertVideoAsync(string inputFile, string outputFile, string preset = null, string additionalOptions = null, CancellationToken cancellationToken = default)
         {
-            var arguments = new StringBuilder();
-            arguments.AppendFormat("-i \"{0}\" -o \"{1}\"", inputFile, outputFile);
-
-            if (!string.IsNullOrWhiteSpace(preset))
-            {
-                arguments.AppendFormat(" -Z \"{0}\"", preset);
-            }
-
-            if (!string.IsNullOrWhiteSpace(additionalOptions))
-            {
-                arguments.AppendFormat(" {0}", additionalOptions);
-            }
-
-            return await ExecuteConversionAsync(arguments.ToString(), cancellationToken);
+            var arguments = BuildHandBrakeArguments(inputFile, outputFile, preset, additionalOptions);
+            return await ExecuteConversionAsync(arguments, cancellationToken);
         }
 
         /// <summary>
@@ -118,25 +106,94 @@ namespace Batchbrake.Utilities
         /// <returns>A task that represents the asynchronous operation.</returns>
         public async Task<bool> ConvertVideoClipAsync(string inputFile, string outputFile, TimeSpan startTime, TimeSpan endTime, string preset = null, string additionalOptions = null, CancellationToken cancellationToken = default)
         {
+            var arguments = BuildHandBrakeArguments(inputFile, outputFile, preset, additionalOptions);
+            
+            // Add start and stop time parameters for clip conversion
+            var startSeconds = (int)startTime.TotalSeconds;
+            var duration = (int)(endTime - startTime).TotalSeconds;
+            arguments += $" --start-at seconds:{startSeconds} --stop-at seconds:{duration}";
+
+            return await ExecuteConversionAsync(arguments, cancellationToken);
+        }
+
+        /// <summary>
+        /// Builds HandBrake command-line arguments based on the current settings.
+        /// </summary>
+        private string BuildHandBrakeArguments(string inputFile, string outputFile, string preset = null, string additionalOptions = null)
+        {
             var arguments = new StringBuilder();
             arguments.AppendFormat("-i \"{0}\" -o \"{1}\"", inputFile, outputFile);
 
-            // Add start and stop time parameters
-            var startSeconds = (int)startTime.TotalSeconds;
-            var duration = (int)(endTime - startTime).TotalSeconds;
-            arguments.AppendFormat(" --start-at seconds:{0} --stop-at seconds:{1}", startSeconds, duration);
-
+            // Use preset if specified - this is the most reliable approach
             if (!string.IsNullOrWhiteSpace(preset))
             {
                 arguments.AppendFormat(" -Z \"{0}\"", preset);
             }
 
+            // Add additional options if specified (maintaining backward compatibility)
             if (!string.IsNullOrWhiteSpace(additionalOptions))
             {
                 arguments.AppendFormat(" {0}", additionalOptions);
             }
+            
+            // Add user additional arguments from settings if specified
+            if (!string.IsNullOrWhiteSpace(_settings.AdditionalArguments))
+            {
+                arguments.AppendFormat(" {0}", _settings.AdditionalArguments);
+            }
 
-            return await ExecuteConversionAsync(arguments.ToString(), cancellationToken);
+            var commandLine = arguments.ToString();
+            System.Diagnostics.Debug.WriteLine($"HandBrake Command: {_handbrakeCLIPath} {commandLine}");
+            
+            return commandLine;
+        }
+
+        /// <summary>
+        /// Generates additional HandBrake arguments based on the current settings.
+        /// This can be used to apply custom settings when presets are not sufficient.
+        /// </summary>
+        /// <returns>Additional arguments string that can be used with additionalOptions parameter</returns>
+        public string GetAdditionalArgumentsFromSettings()
+        {
+            var args = new StringBuilder();
+            
+            // Only add non-default settings to avoid conflicts with presets
+            
+            // Quality setting (only if not default)
+            if (_settings.QualityValue != 22)
+            {
+                args.AppendFormat(" -q {0}", _settings.QualityValue);
+            }
+            
+            // Video encoder (only if not default)
+            if (!string.IsNullOrEmpty(_settings.VideoEncoder) && _settings.VideoEncoder != "x264")
+            {
+                args.AppendFormat(" -e {0}", _settings.VideoEncoder);
+            }
+            
+            // Two-pass encoding
+            if (_settings.TwoPass)
+            {
+                args.Append(" -2");
+                if (_settings.TurboFirstPass)
+                {
+                    args.Append(" -T");
+                }
+            }
+            
+            // Audio encoder (only if not default)
+            if (!string.IsNullOrEmpty(_settings.AudioEncoder) && _settings.AudioEncoder != "av_aac")
+            {
+                args.AppendFormat(" -E {0}", _settings.AudioEncoder);
+            }
+            
+            // Audio bitrate (only if not default)
+            if (_settings.AudioBitrate != 160)
+            {
+                args.AppendFormat(" -B {0}", _settings.AudioBitrate);
+            }
+            
+            return args.ToString().Trim();
         }
 
         /// <summary>
@@ -145,6 +202,9 @@ namespace Batchbrake.Utilities
         private async Task<bool> ExecuteConversionAsync(string commandArguments, CancellationToken cancellationToken)
         {
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            
+            // Debug output
+            System.Diagnostics.Debug.WriteLine($"Executing HandBrake: {_handbrakeCLIPath} {commandArguments}");
             
             var startInfo = new ProcessStartInfo
             {
@@ -167,6 +227,7 @@ namespace Batchbrake.Utilities
                     if (e.Data != null) 
                     {
                         outputBuilder.AppendLine(e.Data);
+                        System.Diagnostics.Debug.WriteLine($"HandBrake Output: {e.Data}");
                         
                         // Parse progress from HandBrake output
                         var progressMatch = Regex.Match(e.Data, @"Encoding: task \d+ of \d+, (\d+\.\d+) %");
@@ -186,6 +247,7 @@ namespace Batchbrake.Utilities
                     if (e.Data != null) 
                     {
                         errorBuilder.AppendLine(e.Data);
+                        System.Diagnostics.Debug.WriteLine($"HandBrake Error: {e.Data}");
                     }
                 };
 
@@ -212,6 +274,13 @@ namespace Batchbrake.Utilities
                     }
 
                     var success = _currentProcess.ExitCode == 0;
+                    System.Diagnostics.Debug.WriteLine($"HandBrake Exit Code: {_currentProcess.ExitCode}");
+                    if (!success)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"HandBrake Error Output: {errorBuilder}");
+                        System.Diagnostics.Debug.WriteLine($"HandBrake Standard Output: {outputBuilder}");
+                    }
+                    
                     ConversionCompleted?.Invoke(this, new ConversionCompletedEventArgs 
                     { 
                         Success = success, 

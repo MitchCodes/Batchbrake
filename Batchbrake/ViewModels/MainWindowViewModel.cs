@@ -525,12 +525,13 @@ namespace Batchbrake.ViewModels
                 }
                 else
                 {
-                    // Use HandBrake for conversion
+                    // Use HandBrake for conversion with custom settings applied
+                    var additionalArgs = handbrakeCliWrapper.GetAdditionalArgumentsFromSettings();
                     conversionResult = await handbrakeCliWrapper.ConvertVideoAsync(
                         video.InputFilePath!, 
                         video.OutputFilePath!, 
                         video.Preset,
-                        null,
+                        additionalArgs,
                         cancellationToken);
                 }
 
