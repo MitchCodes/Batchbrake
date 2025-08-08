@@ -6,68 +6,449 @@
         xmlns:conv="using:Batchbrake.Converters"
         x:Class="Batchbrake.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="Batchbrake - Video Converter" Width="1400" Height="1000">
-  <StackPanel>
-    <StackPanel.Resources>
-      <SolidColorBrush x:Key="EvenRowBrush" Color="#FFFFFF"/>
-      <SolidColorBrush x:Key="OddRowBrush" Color="#F0F0F0"/>
-      <conv:IndexToBrushConverter x:Key="IndexToBrushConverter"
-                                  EvenBrush="{StaticResource EvenRowBrush}"
-                                  OddBrush="{StaticResource OddRowBrush}"/>
-    </StackPanel.Resources>
-    
-    <!-- Video Queue -->
-    <TextBlock Text="Video Queue" FontWeight="Bold" FontSize="16" Margin="10"/>
-    <ScrollViewer Width="1300" Height="450" HorizontalAlignment="Left">
-      <ItemsControl ItemsSource="{Binding VideoQueue}" Margin="10">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <Border BorderBrush="Gray" BorderThickness="0,0,0,1" Padding="5">
-              <!-- Updated Style -->
-              <Border.Styles>
-                <Style Selector="StackPanel">
-                  <!-- Base background from the IndexToBrushConverter -->
-                  <Setter Property="Background" Value="{Binding Index, Converter={StaticResource IndexToBrushConverter}}"/>
-                </Style>
-                <Style Selector="StackPanel:pointerover">
-                  <!-- Background when pointer is over the Border -->
-                  <Setter Property="Background" Value="#D0E0FF"/>
-                </Style>
-              </Border.Styles>
-              <StackPanel Orientation="Horizontal" Width="1300" HorizontalAlignment="Left">
-                <!-- Your controls here -->
-                <TextBlock Text="{Binding VideoInfo.FileName}" Width="275" Margin="10,0"/>
-                <TextBlock Text="{Binding VideoInfo.Duration}" Width="75" Margin="10,0"/>
-                <TextBlock Text="{Binding VideoInfo.Resolution}" Width="100" Margin="10,0"/>
-                <TextBox Text="{Binding OutputFilePath}" Width="300" Margin="10,0" />
-                <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding Preset}" Width="150" Margin="10,0"/>
-                <Button Content="Open" Command="{Binding ((vm:MainWindowViewModel)DataContext).OpenVideoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Width="75" Margin="10"/>
-                <Button Content="Folder" Command="{Binding ((vm:MainWindowViewModel)DataContext).OpenVideoFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Width="75" Margin="10"/>
-                <Button Content="Delete" Command="{Binding ((vm:MainWindowViewModel)DataContext).RemoveVideoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Width="75" Margin="10"/>
-              </StackPanel>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </ScrollViewer>
+        Title="Batchbrake - Batch Video Converter"
+        Width="1400" Height="900"
+        MinWidth="1000" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+  
+  <Window.Styles>
+    <Style Selector="Button">
+      <Setter Property="Padding" Value="12,6"/>
+      <Setter Property="MinWidth" Value="80"/>
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#0078D4"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="#106EBE"/>
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Background" Value="#D13438"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.danger:pointerover">
+      <Setter Property="Background" Value="#A4262C"/>
+    </Style>
+    <Style Selector="TextBlock.header">
+      <Setter Property="FontSize" Value="20"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
+    <Style Selector="TextBlock.section-header">
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,15,0,5"/>
+    </Style>
+  </Window.Styles>
 
-    <!-- Add Video Button -->
-    <Button Content="Add Videos" Command="{Binding AddVideosCommand}" Margin="10"/>
+  <DockPanel>
+    <!-- Menu Bar -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="_Add Videos..." Command="{Binding AddVideosCommand}">
+          <MenuItem.Icon>
+            <PathIcon Data="M12,14V16.88C12.04,17.18 11.94,17.5 11.71,17.71C11.32,18.1 10.69,18.1 10.3,17.71L7.29,14.7C7.06,14.47 6.96,14.16 7,13.87V6H5V13.87C4.96,14.16 4.86,14.47 4.63,14.7L1.62,17.71C1.23,18.1 0.6,18.1 0.21,17.71C-0.02,17.5 -0.08,17.18 -0.04,16.88V4C-0.04,2.9 0.86,2 1.96,2H14.04C15.14,2 16.04,2.9 16.04,4V12H14V6H12V14M7,4H9V11H7V4M17,14V17H19V19L22,16L19,13V15H17V14Z"/>
+          </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Header="_Clear Queue">
+          <MenuItem.Icon>
+            <PathIcon Data="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z"/>
+          </MenuItem.Icon>
+        </MenuItem>
+        <Separator/>
+        <MenuItem Header="_Save Session">
+          <MenuItem.Icon>
+            <PathIcon Data="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z"/>
+          </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Header="_Load Session">
+          <MenuItem.Icon>
+            <PathIcon Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+          </MenuItem.Icon>
+        </MenuItem>
+        <Separator/>
+        <MenuItem Header="E_xit">
+          <MenuItem.Icon>
+            <PathIcon Data="M19,3H5C3.89,3 3,3.89 3,5V9H5V5H19V19H5V15H3V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M10.08,15.58L11.5,17L16.5,12L11.5,7L10.08,8.41L12.67,11H3V13H12.67L10.08,15.58Z"/>
+          </MenuItem.Icon>
+        </MenuItem>
+      </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem Header="_Select All"/>
+        <MenuItem Header="_Deselect All"/>
+        <Separator/>
+        <MenuItem Header="_Remove Selected"/>
+      </MenuItem>
+      <MenuItem Header="_Tools">
+        <MenuItem Header="_HandBrake Settings"/>
+        <MenuItem Header="_FFmpeg Settings"/>
+        <Separator/>
+        <MenuItem Header="_Preferences"/>
+      </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="_Documentation"/>
+        <MenuItem Header="_About"/>
+      </MenuItem>
+    </Menu>
 
-    <!-- Parallel Instances Configuration -->
-    <TextBlock Text="Parallel Instances" Margin="10,10,0,0"/>
-    <NumericUpDown Minimum="1" Maximum="10" Value="{Binding ParallelInstances}" Width="100" Margin="10,0,0,10" HorizontalAlignment="Left" />
+    <!-- Tool Bar -->
+    <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="5" Margin="10,5">
+        <Button Classes="primary" Command="{Binding AddVideosCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" Width="16" Height="16"/>
+            <TextBlock Text="Add Videos"/>
+          </StackPanel>
+        </Button>
+        <Button Command="{Binding StartConversionCommand}" IsEnabled="{Binding CanStartConversion}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z" Width="16" Height="16"/>
+            <TextBlock Text="Start Conversion"/>
+          </StackPanel>
+        </Button>
+        <Button Command="{Binding PauseConversionCommand}" IsEnabled="{Binding IsConverting}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="M14,19H18V5H14M6,19H10V5H6V19Z" Width="16" Height="16"/>
+            <TextBlock Text="Pause"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="danger" Command="{Binding StopConversionCommand}" IsEnabled="{Binding IsConverting}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="M18,18H6V6H18V18Z" Width="16" Height="16"/>
+            <TextBlock Text="Stop"/>
+          </StackPanel>
+        </Button>
+        <Rectangle Width="1" Height="25" Fill="#D0D0D0" Margin="10,0"/>
+        <Button Command="{Binding ClearCompletedCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="M9,16.17L4.83,12L3.41,13.41L9,19L21,7L19.59,5.59L9,16.17Z" Width="16" Height="16"/>
+            <TextBlock Text="Clear Completed"/>
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Border>
 
-    <!-- Default Preset -->
-    <TextBlock Text="Default Preset" Margin="10,10,0,0"/>
-    <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding DefaultPreset}" Width="150" Margin="10,0,0,10" />
+    <!-- Status Bar -->
+    <Border DockPanel.Dock="Bottom" Background="#007ACC" Height="30">
+      <Grid Margin="10,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        
+        <TextBlock Grid.Column="0" Text="{Binding StatusText}" Foreground="White" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="2" Text="{Binding QueueCount, StringFormat='Queue: {0} videos'}" Foreground="White" VerticalAlignment="Center" Margin="0,0,20,0"/>
+        <TextBlock Grid.Column="3" Text="{Binding ProcessingCount, StringFormat='Processing: {0}'}" Foreground="White" VerticalAlignment="Center" Margin="0,0,20,0"/>
+        <TextBlock Grid.Column="4" Text="{Binding CompletedCount, StringFormat='Completed: {0}'}" Foreground="White" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
 
-    <!-- Default Output Path -->
-    <TextBlock Text="Default Output Path" Margin="10,10,0,0"/>
-    <TextBox Text="{Binding DefaultOutputPath}" Width="400" Margin="10,0,0,0" HorizontalAlignment="Left" />
-    <TextBlock Text="(Folder): Input file's folder, (FileName): Input file's name, (Ext): File extension." Margin="10,0,0,10" FontStyle="Italic" />
-    
-    <!-- Conversion Button -->
-    <Button Content="Start Conversion" Command="{Binding StartConversionCommand}" Margin="10" />
-  </StackPanel>
+    <!-- Main Content -->
+    <Grid Margin="10">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="200"/>
+      </Grid.RowDefinitions>
+
+      <!-- Header -->
+      <TextBlock Grid.Row="0" Classes="header" Text="Video Conversion Queue"/>
+
+      <!-- Video Queue with Drag & Drop -->
+      <Border Grid.Row="1" 
+              BorderBrush="#D0D0D0" 
+              BorderThickness="1" 
+              CornerRadius="4"
+              DragDrop.AllowDrop="True"
+              Background="White">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Column Headers -->
+          <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+            <Grid Margin="10,8,15,8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="35"/>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="70"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="70"/>
+                <ColumnDefinition Width="*" MinWidth="200"/>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="85"/>
+                <ColumnDefinition Width="125"/>
+              </Grid.ColumnDefinitions>
+              
+                <TextBlock Grid.Column="0" Text="Status" FontWeight="SemiBold" FontSize="12"/>
+                <TextBlock Grid.Column="1" Text="Input File" FontWeight="SemiBold" Margin="5,0" FontSize="12"/>
+                <TextBlock Grid.Column="2" Text="Duration" FontWeight="SemiBold" Margin="5,0" FontSize="12"/>
+                <TextBlock Grid.Column="3" Text="Resolution" FontWeight="SemiBold" Margin="5,0" FontSize="12"/>
+                <TextBlock Grid.Column="4" Text="Size" FontWeight="SemiBold" Margin="5,0" FontSize="12"/>
+                <TextBlock Grid.Column="5" Text="Output File" FontWeight="SemiBold" Margin="5,0" FontSize="12"/>
+                <TextBlock Grid.Column="6" Text="Preset" FontWeight="SemiBold" Margin="5,0" FontSize="12"/>
+                <TextBlock Grid.Column="7" Text="Progress" FontWeight="SemiBold" Margin="5,0" FontSize="12"/>
+                <TextBlock Grid.Column="8" Text="Actions" FontWeight="SemiBold" HorizontalAlignment="Center" FontSize="12"/>
+              </Grid>
+          </Border>
+
+          <!-- Video List -->
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding VideoQueue}">
+              <ItemsControl.Resources>
+                <SolidColorBrush x:Key="EvenRowBrush" Color="#FFFFFF"/>
+                <SolidColorBrush x:Key="OddRowBrush" Color="#F9F9F9"/>
+                <conv:IndexToBrushConverter x:Key="IndexToBrushConverter"
+                                          EvenBrush="{StaticResource EvenRowBrush}"
+                                          OddBrush="{StaticResource OddRowBrush}"/>
+              </ItemsControl.Resources>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border BorderBrush="#E0E0E0" BorderThickness="0,0,0,1"
+                          Background="{Binding Index, Converter={StaticResource IndexToBrushConverter}}">
+                    <Grid Margin="10,8,15,8">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="35"/>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="70"/>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="70"/>
+                        <ColumnDefinition Width="*" MinWidth="200"/>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="85"/>
+                        <ColumnDefinition Width="125"/>
+                      </Grid.ColumnDefinitions>
+
+                      <!-- Status Icon -->
+                      <Panel Grid.Column="0">
+                        <PathIcon Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" 
+                                Width="20" Height="20" Foreground="#808080"
+                                IsVisible="{Binding ConversionStatus, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:VideoConversionStatus.NotStarted}}"/>
+                        <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z" 
+                                Width="20" Height="20" Foreground="#FFA500"
+                                IsVisible="{Binding ConversionStatus, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:VideoConversionStatus.Queued}}"/>
+                        <PathIcon Data="M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z" 
+                                Width="20" Height="20" Foreground="#0078D4"
+                                IsVisible="{Binding ConversionStatus, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:VideoConversionStatus.InProgress}}"/>
+                        <PathIcon Data="M9,16.17L4.83,12L3.41,13.41L9,19L21,7L19.59,5.59L9,16.17Z" 
+                                Width="20" Height="20" Foreground="#107C10"
+                                IsVisible="{Binding ConversionStatus, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:VideoConversionStatus.Completed}}"/>
+                        <PathIcon Data="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z" 
+                                Width="20" Height="20" Foreground="#D13438"
+                                IsVisible="{Binding ConversionStatus, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:VideoConversionStatus.Failed}}"/>
+                      </Panel>
+
+                      <!-- Input File -->
+                      <TextBlock Grid.Column="1" Text="{Binding VideoInfo.FileName}" 
+                               VerticalAlignment="Center" Margin="5,0"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding InputFilePath}"/>
+
+                      <!-- Duration -->
+                      <TextBlock Grid.Column="2" Text="{Binding VideoInfo.Duration}" 
+                               VerticalAlignment="Center" Margin="5,0"/>
+
+                      <!-- Resolution -->
+                      <TextBlock Grid.Column="3" Text="{Binding VideoInfo.Resolution}" 
+                               VerticalAlignment="Center" Margin="5,0"/>
+
+                      <!-- File Size -->
+                      <TextBlock Grid.Column="4" Text="{Binding VideoInfo.FileSize}" 
+                               VerticalAlignment="Center" Margin="5,0"/>
+
+                      <!-- Output File -->
+                      <TextBox Grid.Column="5" Text="{Binding OutputFilePath}" 
+                             Margin="5,0" VerticalAlignment="Center"
+                             FontSize="11"/>
+
+                      <!-- Preset -->
+                      <ComboBox Grid.Column="6" ItemsSource="{Binding Presets}" 
+                              SelectedItem="{Binding Preset}" 
+                              Margin="5,0,15,0" VerticalAlignment="Center"
+                              FontSize="11" MinHeight="24"/>
+
+                      <!-- Progress -->
+                      <ProgressBar Grid.Column="7" Value="{Binding ConversionProgress}" 
+                                 Minimum="0" Maximum="100" Height="18"
+                                 ShowProgressText="True"
+                                 Margin="10,0,15,0" VerticalAlignment="Center"/>
+
+                      <!-- Actions -->
+                      <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="3" 
+                                HorizontalAlignment="Center" Margin="5,0,10,0">
+                        <Button ToolTip.Tip="Open video file"
+                                Command="{Binding ((vm:MainWindowViewModel)DataContext).OpenVideoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}"
+                                Padding="4" MinWidth="32" Width="32">
+                          <PathIcon Data="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" 
+                                  Width="14" Height="14"/>
+                        </Button>
+                        <Button ToolTip.Tip="Open containing folder"
+                                Command="{Binding ((vm:MainWindowViewModel)DataContext).OpenVideoFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}"
+                                Padding="4" MinWidth="32" Width="32">
+                          <PathIcon Data="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z" 
+                                  Width="14" Height="14"/>
+                        </Button>
+                        <Button ToolTip.Tip="Remove from queue"
+                                Command="{Binding ((vm:MainWindowViewModel)DataContext).RemoveVideoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}"
+                                Classes="danger"
+                                Padding="4" MinWidth="32" Width="32">
+                          <PathIcon Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" 
+                                  Width="14" Height="14"/>
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <!-- Drop Zone Overlay -->
+          <Border Grid.Row="1" 
+                  Background="#E8F4FD" 
+                  BorderBrush="#0078D4" 
+                  BorderThickness="2" 
+                  CornerRadius="4"
+                  IsVisible="{Binding IsDraggingOver}"
+                  IsHitTestVisible="False"
+                  Margin="20">
+            <Border.Styles>
+              <Style Selector="Border">
+                <Setter Property="BorderBrush">
+                  <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                      <GradientStop Color="#0078D4" Offset="0"/>
+                      <GradientStop Color="#0078D4" Offset="0.25"/>
+                      <GradientStop Color="Transparent" Offset="0.25"/>
+                      <GradientStop Color="Transparent" Offset="0.5"/>
+                      <GradientStop Color="#0078D4" Offset="0.5"/>
+                      <GradientStop Color="#0078D4" Offset="0.75"/>
+                      <GradientStop Color="Transparent" Offset="0.75"/>
+                      <GradientStop Color="Transparent" Offset="1"/>
+                    </LinearGradientBrush>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+            </Border.Styles>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+              <PathIcon Data="M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z" 
+                      Width="48" Height="48" Foreground="#0078D4"/>
+              <TextBlock Text="Drop video files here" FontSize="18" Foreground="#0078D4" Margin="0,10,0,0"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+
+      <!-- Settings Panel -->
+      <Expander Grid.Row="2" Header="Conversion Settings" IsExpanded="True" Margin="0,10,0,0">
+        <Border Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15" Margin="0,5,0,0">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Column 1 -->
+            <StackPanel Grid.Column="0" Margin="0,0,20,0">
+              <TextBlock Classes="section-header" Text="Processing"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                </Grid.RowDefinitions>
+                
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Parallel Instances:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <NumericUpDown Grid.Row="0" Grid.Column="1" 
+                             Minimum="1" Maximum="10" 
+                             Value="{Binding ParallelInstances}" 
+                             HorizontalAlignment="Left" Width="100"/>
+                
+                <CheckBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" 
+                        Content="Delete source files after conversion" 
+                        IsChecked="{Binding DeleteSourceAfterConversion}"
+                        Margin="0,10,0,0"/>
+              </Grid>
+            </StackPanel>
+
+            <!-- Column 2 -->
+            <StackPanel Grid.Column="1" Margin="0,0,20,0">
+              <TextBlock Classes="section-header" Text="Default Settings"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                </Grid.RowDefinitions>
+                
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Default Preset:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <ComboBox Grid.Row="0" Grid.Column="1" 
+                        ItemsSource="{Binding Presets}" 
+                        SelectedItem="{Binding DefaultPreset}"/>
+                
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Output Format:" VerticalAlignment="Center" Margin="0,10,10,0"/>
+                <ComboBox Grid.Row="1" Grid.Column="1" 
+                        SelectedItem="{Binding DefaultOutputFormat}"
+                        Margin="0,10,0,0">
+                  <ComboBoxItem>mp4</ComboBoxItem>
+                  <ComboBoxItem>mkv</ComboBoxItem>
+                  <ComboBoxItem>webm</ComboBoxItem>
+                  <ComboBoxItem>avi</ComboBoxItem>
+                </ComboBox>
+              </Grid>
+            </StackPanel>
+
+            <!-- Column 3 -->
+            <StackPanel Grid.Column="2">
+              <TextBlock Classes="section-header" Text="Output Path Template"/>
+              <TextBox Text="{Binding DefaultOutputPath}" />
+              <TextBlock Text="Variables: $(Folder), $(FileName), $(Ext)" 
+                       FontSize="11" Foreground="#666666" Margin="0,5,0,0"/>
+            </StackPanel>
+          </Grid>
+        </Border>
+      </Expander>
+
+      <!-- Log Output -->
+      <Border Grid.Row="3" BorderBrush="#D0D0D0" BorderThickness="1" CornerRadius="4" Background="#1E1E1E" Margin="0,10,0,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          
+          <Border Grid.Row="0" Background="#2D2D30" CornerRadius="4,4,0,0">
+            <TextBlock Text="Conversion Log" Foreground="White" FontWeight="SemiBold" Margin="10,5"/>
+          </Border>
+          
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="10,5">
+            <TextBox Text="{Binding LogOutput}" 
+                   IsReadOnly="True" 
+                   Background="Transparent" 
+                   Foreground="#D4D4D4"
+                   FontFamily="Consolas,Courier New,monospace"
+                   FontSize="11"
+                   BorderThickness="0"/>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+  </DockPanel>
 </Window>

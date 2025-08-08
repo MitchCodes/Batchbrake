@@ -30,5 +30,15 @@ namespace Batchbrake.Models
         /// Gets or sets the video codec.
         /// </summary>
         public string? Codec { get; set; }
+
+        /// <summary>
+        /// Gets or sets the file size in a human-readable format.
+        /// </summary>
+        public string? FileSize { get; set; }
+
+        /// <summary>
+        /// Gets or sets the file size in bytes.
+        /// </summary>
+        public long FileSizeBytes { get; set; }
     }
 }

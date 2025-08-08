@@ -76,7 +76,7 @@ namespace Batchbrake.Utilities
             }
 
             // Extract resolution
-            var resolutionMatch = Regex.Match(ffmpegOutput, @"Stream.*Video:.*(\d{4})x(\d{2,4})");
+            var resolutionMatch = Regex.Match(ffmpegOutput, @"Stream.*Video:.*(\d{3,4})x(\d{2,4})");
             if (resolutionMatch.Success)
             {
                 videoInfo.Resolution = $"{resolutionMatch.Groups[1].Value}x{resolutionMatch.Groups[2].Value}";
@@ -89,7 +89,35 @@ namespace Batchbrake.Utilities
                 videoInfo.Codec = codecMatch.Groups[1].Value;
             }
 
+            // Get file size
+            if (File.Exists(filePath))
+            {
+                var fileInfo = new FileInfo(filePath);
+                videoInfo.FileSizeBytes = fileInfo.Length;
+                videoInfo.FileSize = FormatFileSize(fileInfo.Length);
+            }
+
             return videoInfo;
+        }
+
+        /// <summary>
+        /// Formats a file size in bytes to a human-readable string.
+        /// </summary>
+        /// <param name="bytes">The file size in bytes.</param>
+        /// <returns>A human-readable file size string.</returns>
+        private string FormatFileSize(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+            double size = bytes;
+            int index = 0;
+            
+            while (size >= 1024 && index < sizes.Length - 1)
+            {
+                size /= 1024;
+                index++;
+            }
+            
+            return $"{size:0.##} {sizes[index]}";
         }
     }
 }

@@ -27,6 +27,8 @@ namespace Batchbrake
 
             AddHandler(DragDrop.DropEvent, OnDrop);
             AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
+            AddHandler(DragDrop.DragOverEvent, OnDragOver);
+            AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         }
 
         private void InitializeComponent()
@@ -37,6 +39,12 @@ namespace Batchbrake
         // Drag and Drop Functionality
         private async void OnDrop(object sender, DragEventArgs e)
         {
+            var viewModel = DataContext as MainWindowViewModel;
+            if (viewModel != null)
+            {
+                viewModel.IsDraggingOver = false;
+            }
+
             List<string> filesDropped = new List<string>();
 
             if (e.Data.Contains(DataFormats.Text))
@@ -72,11 +80,16 @@ namespace Batchbrake
                 }
             }
 
-            if (filesDropped.Count > 0)
+            if (filesDropped.Count > 0 && viewModel != null)
             {
+                var videoExtensions = new[] { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg" };
                 foreach (var file in filesDropped)
                 {
-                    await ((MainWindowViewModel)DataContext).AddNewFile(file);
+                    var extension = System.IO.Path.GetExtension(file).ToLowerInvariant();
+                    if (videoExtensions.Contains(extension))
+                    {
+                        await viewModel.AddNewFile(file);
+                    }
                 }
             }
         }
@@ -84,7 +97,81 @@ namespace Batchbrake
         // Drag Enter - Visual feedback for drag and drop
         private void OnDragEnter(object sender, DragEventArgs e)
         {
-            e.DragEffects = DragDropEffects.Copy;
+            if (HasVideoFiles(e))
+            {
+                e.DragEffects = DragDropEffects.Copy;
+                var viewModel = DataContext as MainWindowViewModel;
+                if (viewModel != null)
+                {
+                    viewModel.IsDraggingOver = true;
+                }
+            }
+            else
+            {
+                e.DragEffects = DragDropEffects.None;
+            }
+        }
+
+        // Drag Over - Maintain visual feedback
+        private void OnDragOver(object sender, DragEventArgs e)
+        {
+            if (HasVideoFiles(e))
+            {
+                e.DragEffects = DragDropEffects.Copy;
+            }
+            else
+            {
+                e.DragEffects = DragDropEffects.None;
+            }
+        }
+
+        // Drag Leave - Remove visual feedback
+        private void OnDragLeave(object sender, DragEventArgs e)
+        {
+            var viewModel = DataContext as MainWindowViewModel;
+            if (viewModel != null)
+            {
+                viewModel.IsDraggingOver = false;
+            }
+        }
+
+        // Helper method to check if drag contains video files
+        private bool HasVideoFiles(DragEventArgs e)
+        {
+            var videoExtensions = new[] { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg" };
+
+            if (e.Data.Contains(DataFormats.Files))
+            {
+                var files = e.Data.GetFiles();
+                if (files != null)
+                {
+                    foreach (var file in files)
+                    {
+                        var extension = System.IO.Path.GetExtension(file.Path.AbsolutePath).ToLowerInvariant();
+                        if (videoExtensions.Contains(extension))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            else if (e.Data.Contains(DataFormats.FileNames))
+            {
+                var files = e.Data.GetFileNames();
+                if (files != null)
+                {
+                    foreach (var file in files)
+                    {
+                        var extension = System.IO.Path.GetExtension(file).ToLowerInvariant();
+                        if (videoExtensions.Contains(extension))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
         }
     }
 }

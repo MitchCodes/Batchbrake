@@ -79,6 +79,60 @@ namespace Batchbrake.ViewModels
             }
         }
 
+        private bool _isDraggingOver;
+        public bool IsDraggingOver
+        {
+            get => _isDraggingOver;
+            set => this.RaiseAndSetIfChanged(ref _isDraggingOver, value);
+        }
+
+        private bool _isConverting;
+        public bool IsConverting
+        {
+            get => _isConverting;
+            set
+            {
+                this.RaiseAndSetIfChanged(ref _isConverting, value);
+                this.RaisePropertyChanged(nameof(CanStartConversion));
+            }
+        }
+
+        private string _statusText = "Ready";
+        public string StatusText
+        {
+            get => _statusText;
+            set => this.RaiseAndSetIfChanged(ref _statusText, value);
+        }
+
+        private string _logOutput = "";
+        public string LogOutput
+        {
+            get => _logOutput;
+            set => this.RaiseAndSetIfChanged(ref _logOutput, value);
+        }
+
+        private bool _deleteSourceAfterConversion;
+        public bool DeleteSourceAfterConversion
+        {
+            get => _deleteSourceAfterConversion;
+            set => this.RaiseAndSetIfChanged(ref _deleteSourceAfterConversion, value);
+        }
+
+        private string _defaultOutputFormat = "mp4";
+        public string DefaultOutputFormat
+        {
+            get => _defaultOutputFormat;
+            set => this.RaiseAndSetIfChanged(ref _defaultOutputFormat, value);
+        }
+
+        public int QueueCount => VideoQueue?.Count ?? 0;
+        
+        public int ProcessingCount => VideoQueue?.Count(v => v.ConversionStatus == VideoConversionStatus.InProgress) ?? 0;
+        
+        public int CompletedCount => VideoQueue?.Count(v => v.ConversionStatus == VideoConversionStatus.Completed) ?? 0;
+
+        public bool CanStartConversion => !IsConverting && VideoQueue?.Any() == true;
+
         public MainWindowViewModel()
         {
             VideoQueue.CollectionChanged += VideoQueue_CollectionChanged;
@@ -183,6 +237,39 @@ namespace Batchbrake.ViewModels
         // Command to open video
         public ReactiveCommand<VideoModelViewModel, Unit> OpenVideoFolderCommand => ReactiveCommand.Create<VideoModelViewModel>(OpenVideoFolder);
 
+        // Pause Conversion Command
+        public ReactiveCommand<Unit, Unit> PauseConversionCommand => ReactiveCommand.Create(() =>
+        {
+            StatusText = "Conversion paused";
+            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Conversion paused by user\n";
+        });
+
+        // Stop Conversion Command
+        public ReactiveCommand<Unit, Unit> StopConversionCommand => ReactiveCommand.Create(() =>
+        {
+            IsConverting = false;
+            StatusText = "Conversion stopped";
+            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Conversion stopped by user\n";
+            
+            // Mark all in-progress videos as cancelled
+            foreach (var video in VideoQueue.Where(v => v.ConversionStatus == VideoConversionStatus.InProgress))
+            {
+                video.ConversionStatus = VideoConversionStatus.Cancelled;
+                video.ConversionProgress = 0;
+            }
+        });
+
+        // Clear Completed Command
+        public ReactiveCommand<Unit, Unit> ClearCompletedCommand => ReactiveCommand.Create(() =>
+        {
+            var completedVideos = VideoQueue.Where(v => v.ConversionStatus == VideoConversionStatus.Completed).ToList();
+            foreach (var video in completedVideos)
+            {
+                VideoQueue.Remove(video);
+            }
+            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Cleared {completedVideos.Count} completed videos from queue\n";
+        });
+
         // Retrieve video info via FFmpeg wrapper
         private async Task<VideoInfoModel> GetVideoInfoAsync(string filePath)
         {
@@ -257,6 +344,12 @@ namespace Batchbrake.ViewModels
             {
                 VideoQueue[i].Index = i;
             }
+
+            // Update count properties
+            this.RaisePropertyChanged(nameof(QueueCount));
+            this.RaisePropertyChanged(nameof(ProcessingCount));
+            this.RaisePropertyChanged(nameof(CompletedCount));
+            this.RaisePropertyChanged(nameof(CanStartConversion));
         }
     }
 }
