@@ -275,10 +275,9 @@
                               FontSize="11" MinHeight="24"/>
 
                       <!-- Progress -->
-                      <ProgressBar Grid.Column="7" Value="{Binding ConversionProgress}" 
-                                 Minimum="0" Maximum="100" Height="18"
-                                 ShowProgressText="True"
-                                 Margin="10,0,15,0" VerticalAlignment="Center"/>
+                      <TextBlock Grid.Column="7" Text="{Binding ConversionProgress, StringFormat={}{0}%}" 
+                               VerticalAlignment="Center" HorizontalAlignment="Center"
+                               Margin="5,0" FontSize="11"/>
 
                       <!-- Actions -->
                       <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="3" 
