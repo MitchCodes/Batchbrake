@@ -456,3 +456,4 @@ cache/
 
 # Claude
 .claude/
+/nul
