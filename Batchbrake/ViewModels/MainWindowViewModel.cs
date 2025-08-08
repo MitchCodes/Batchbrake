@@ -17,6 +17,7 @@ using System.Reactive.Concurrency;
 using System.Collections.Specialized;
 using System.Threading;
 using System.Text.Json;
+using System.Reactive.Linq;
 
 namespace Batchbrake.ViewModels
 {
@@ -26,6 +27,7 @@ namespace Batchbrake.ViewModels
         private CancellationTokenSource? _conversionCancellationTokenSource;
         private FFmpegSettings _ffmpegSettings = new FFmpegSettings();
         private HandBrakeSettings _handBrakeSettings = new HandBrakeSettings();
+        private SessionManager _sessionManager;
 
         private ObservableCollection<VideoModelViewModel> _videoQueue = new ObservableCollection<VideoModelViewModel>();
         public ObservableCollection<VideoModelViewModel> VideoQueue
@@ -139,6 +141,7 @@ namespace Batchbrake.ViewModels
 
         public MainWindowViewModel()
         {
+            _sessionManager = new SessionManager();
             VideoQueue.CollectionChanged += VideoQueue_CollectionChanged;
         }
 
@@ -149,6 +152,7 @@ namespace Batchbrake.ViewModels
             Task.Run(LoadPresetsAsync);
             Task.Run(LoadFFmpegSettingsAsync);
             Task.Run(LoadHandBrakeSettingsAsync);
+            Task.Run(LoadSessionAsync);
         }
 
         private async Task LoadPresetsAsync()
@@ -161,16 +165,41 @@ namespace Batchbrake.ViewModels
                 RxApp.MainThreadScheduler.Schedule(() =>
                 {
                     Presets.Clear();
+                    var totalPresetCount = 0;
+                    var customPresetCount = 0;
 
                     foreach (var presetCategory in presets.Keys)
                     {
                         foreach (var preset in presets[presetCategory])
                         {
                             Presets.Add(preset);
+                            totalPresetCount++;
+                            
+                            // Check if this is likely a custom preset (simple heuristic)
+                            if (!presetCategory.Equals("General", StringComparison.OrdinalIgnoreCase) &&
+                                !presetCategory.Equals("Web", StringComparison.OrdinalIgnoreCase) &&
+                                !presetCategory.Equals("Devices", StringComparison.OrdinalIgnoreCase) &&
+                                !presetCategory.Equals("Matroska", StringComparison.OrdinalIgnoreCase))
+                            {
+                                customPresetCount++;
+                            }
                         }
                     }
 
                     DefaultPreset = Presets.FirstOrDefault();
+                    
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Loaded {totalPresetCount} HandBrake presets";
+                    if (customPresetCount > 0)
+                    {
+                        LogOutput += $" (including {customPresetCount} custom presets)";
+                    }
+                    LogOutput += "\n";
+                    
+                    // Log available preset categories for debugging
+                    if (presets.Keys.Any())
+                    {
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Preset categories: {string.Join(", ", presets.Keys)}\n";
+                    }
                 });
             }
             catch (Exception ex)
@@ -178,12 +207,16 @@ namespace Batchbrake.ViewModels
                 RxApp.MainThreadScheduler.Schedule(() =>
                 {
                     LogOutput += $"[{DateTime.Now:HH:mm:ss}] Warning: Could not load HandBrake presets: {ex.Message}\n";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Note: If you have custom presets in HandBrake GUI, make sure HandBrakeCLI can access them\n";
+                    
                     // Add some default presets if HandBrake is not available
                     Presets.Clear();
                     Presets.Add("Fast 1080p30");
                     Presets.Add("HQ 1080p30 Surround");
                     Presets.Add("Super HQ 1080p30 Surround");
                     DefaultPreset = Presets.FirstOrDefault();
+                    
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Using fallback built-in presets\n";
                 });
             }
         }
@@ -218,6 +251,9 @@ namespace Batchbrake.ViewModels
             };
 
             VideoQueue.Add(video);
+            
+            // Auto-save session after adding video
+            _ = Task.Run(SaveSessionAsync);
         }
 
         public void RemoveVideo(VideoModelViewModel video)
@@ -232,10 +268,13 @@ namespace Batchbrake.ViewModels
             {
                 VideoQueue[i].Index = i;
             }
+            
+            // Auto-save session after removing video
+            _ = Task.Run(SaveSessionAsync);
         }
 
-        // Command to remove video
-        public ReactiveCommand<VideoModelViewModel, Unit> RemoveVideoCommand => ReactiveCommand.Create<VideoModelViewModel>(RemoveVideo);
+        // Command to remove video - disabled when converting
+        public ReactiveCommand<VideoModelViewModel, Unit> RemoveVideoCommand => ReactiveCommand.Create<VideoModelViewModel>(RemoveVideo, this.WhenAnyValue(x => x.IsConverting).Select(converting => !converting));
 
         public void OpenVideo(VideoModelViewModel video)
         {
@@ -287,7 +326,18 @@ namespace Batchbrake.ViewModels
             }
         });
 
-        // Clear Completed Command
+        // Clear Queue Command - disabled when converting
+        public ReactiveCommand<Unit, Unit> ClearQueueCommand => ReactiveCommand.Create(() =>
+        {
+            var videoCount = VideoQueue.Count;
+            VideoQueue.Clear();
+            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Cleared {videoCount} videos from queue\n";
+            
+            // Auto-save session after clearing queue
+            _ = Task.Run(SaveSessionAsync);
+        }, this.WhenAnyValue(x => x.IsConverting).Select(converting => !converting));
+
+        // Clear Completed Command - can be used while converting (only removes completed items)
         public ReactiveCommand<Unit, Unit> ClearCompletedCommand => ReactiveCommand.Create(() =>
         {
             var completedVideos = VideoQueue.Where(v => v.ConversionStatus == VideoConversionStatus.Completed).ToList();
@@ -296,6 +346,9 @@ namespace Batchbrake.ViewModels
                 VideoQueue.Remove(video);
             }
             LogOutput += $"[{DateTime.Now:HH:mm:ss}] Cleared {completedVideos.Count} completed videos from queue\n";
+            
+            // Auto-save session after clearing completed videos
+            _ = Task.Run(SaveSessionAsync);
         });
 
         // Open FFmpeg Settings Command
@@ -402,7 +455,13 @@ namespace Batchbrake.ViewModels
                 // Run the entire conversion process on background threads
                 await Task.Run(async () =>
                 {
-                    var semaphore = new System.Threading.SemaphoreSlim(ParallelInstances, ParallelInstances);
+                    using var semaphore = new System.Threading.SemaphoreSlim(ParallelInstances, ParallelInstances);
+                    
+                    RxApp.MainThreadScheduler.Schedule(() =>
+                    {
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Using {ParallelInstances} parallel conversion instance(s)\n";
+                    });
+                    
                     var tasks = videosToProcess.Select(async video =>
                     {
                         await semaphore.WaitAsync(cancellationToken);
@@ -497,12 +556,18 @@ namespace Batchbrake.ViewModels
                                     LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to delete source file: {deleteEx.Message}\n";
                                 }
                             }
+                            
+                            // Auto-save session after successful conversion
+                            _ = Task.Run(SaveSessionAsync);
                         }
                         else
                         {
                             video.ConversionStatus = VideoConversionStatus.Failed;
                             video.ErrorMessage = e.ErrorMessage;
                             LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to convert {video.VideoInfo?.FileName}: {e.ErrorMessage}\n";
+                            
+                            // Auto-save session after failed conversion
+                            _ = Task.Run(SaveSessionAsync);
                         }
                     });
                 };
@@ -522,6 +587,34 @@ namespace Batchbrake.ViewModels
                             });
                         },
                         cancellationToken);
+                    
+                    // Handle FFmpeg completion
+                    if (conversionResult)
+                    {
+                        RxApp.MainThreadScheduler.Schedule(() =>
+                        {
+                            video.ConversionStatus = VideoConversionStatus.Completed;
+                            video.ConversionProgress = 100;
+                            video.EndTime = DateTime.Now;
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted {video.VideoInfo?.FileName} using FFmpeg\n";
+                            
+                            if (DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
+                            {
+                                try
+                                {
+                                    File.Delete(video.InputFilePath);
+                                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Deleted source file {video.VideoInfo?.FileName}\n";
+                                }
+                                catch (Exception deleteEx)
+                                {
+                                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to delete source file: {deleteEx.Message}\n";
+                                }
+                            }
+                            
+                            // Auto-save session after successful FFmpeg conversion
+                            _ = Task.Run(SaveSessionAsync);
+                        });
+                    }
                 }
                 else
                 {
@@ -549,6 +642,9 @@ namespace Batchbrake.ViewModels
                     video.ConversionProgress = 0;
                     video.EndTime = DateTime.Now;
                     LogOutput += $"[{DateTime.Now:HH:mm:ss}] Conversion cancelled for {video.VideoInfo?.FileName}\n";
+                    
+                    // Auto-save session after cancellation
+                    _ = Task.Run(SaveSessionAsync);
                 });
                 throw; // Re-throw to propagate cancellation
             }
@@ -561,6 +657,9 @@ namespace Batchbrake.ViewModels
                     video.ErrorMessage = ex.Message;
                     video.EndTime = DateTime.Now;
                     LogOutput += $"[{DateTime.Now:HH:mm:ss}] Error processing {video.VideoInfo?.FileName}: {ex.Message}\n";
+                    
+                    // Auto-save session after error
+                    _ = Task.Run(SaveSessionAsync);
                 });
             }
         }
@@ -593,7 +692,7 @@ namespace Batchbrake.ViewModels
             }
         }
 
-        // Add Videos Command
+        // Add Videos Command - disabled when converting
         public ReactiveCommand<Unit, Unit> AddVideosCommand => ReactiveCommand.CreateFromTask(async () =>
         {
             // Start async operation to open the dialog.
@@ -618,6 +717,26 @@ namespace Batchbrake.ViewModels
                 
                 LogOutput += $"[{DateTime.Now:HH:mm:ss}] Added {files.Count} video(s) to queue\n";
             }
+        }, this.WhenAnyValue(x => x.IsConverting).Select(converting => !converting));
+
+        // Help -> About Command
+        public ReactiveCommand<Unit, Unit> ShowAboutCommand => ReactiveCommand.CreateFromTask(async () =>
+        {
+            var aboutDialog = new AboutWindow();
+            
+            // Find the main window to set as owner
+            var mainWindow = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            if (mainWindow?.MainWindow != null)
+            {
+                await aboutDialog.ShowDialog(mainWindow.MainWindow);
+            }
+        });
+
+        // File -> Exit Command
+        public ReactiveCommand<Unit, Unit> ExitApplicationCommand => ReactiveCommand.Create(() =>
+        {
+            var appLifetime = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+            appLifetime?.Shutdown();
         });
 
         private void VideoQueue_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -743,6 +862,45 @@ namespace Batchbrake.ViewModels
                 RxApp.MainThreadScheduler.Schedule(() =>
                 {
                     LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to save FFmpeg settings: {ex.Message}\n";
+                });
+            }
+        }
+
+        private async Task LoadSessionAsync()
+        {
+            try
+            {
+                var sessionData = await _sessionManager.LoadSessionAsync();
+                if (sessionData != null)
+                {
+                    RxApp.MainThreadScheduler.Schedule(async () =>
+                    {
+                        await _sessionManager.ApplySessionToViewModelAsync(sessionData, this);
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Session loaded with {sessionData.Videos.Count} videos\n";
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to load session: {ex.Message}\n";
+                });
+            }
+        }
+
+        private async Task SaveSessionAsync()
+        {
+            try
+            {
+                await _sessionManager.SaveSessionAsync(this);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't disrupt user experience
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to save session: {ex.Message}\n";
                 });
             }
         }

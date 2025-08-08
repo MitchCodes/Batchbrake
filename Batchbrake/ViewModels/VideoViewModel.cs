@@ -128,8 +128,14 @@ namespace Batchbrake.ViewModels
             set
             {
                 this.RaiseAndSetIfChanged(ref _conversionStatus, value);
+                this.RaisePropertyChanged(nameof(CanEditVideo));
             }
         }
+
+        /// <summary>
+        /// Gets a value indicating whether this video can be edited (not currently in progress).
+        /// </summary>
+        public bool CanEditVideo => ConversionStatus != VideoConversionStatus.InProgress;
 
         private double _conversionProgress;
         /// <summary>

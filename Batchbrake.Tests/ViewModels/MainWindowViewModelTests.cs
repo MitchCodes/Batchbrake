@@ -176,6 +176,28 @@ namespace Batchbrake.Tests.ViewModels
         }
 
         [Fact]
+        public void ClearQueueCommand_RemovesAllVideos()
+        {
+            // Arrange
+            var video1 = CreateTestVideoViewModel(VideoConversionStatus.NotStarted);
+            var video2 = CreateTestVideoViewModel(VideoConversionStatus.InProgress);
+            var video3 = CreateTestVideoViewModel(VideoConversionStatus.Completed);
+            var video4 = CreateTestVideoViewModel(VideoConversionStatus.Failed);
+            
+            _viewModel.VideoQueue.Add(video1);
+            _viewModel.VideoQueue.Add(video2);
+            _viewModel.VideoQueue.Add(video3);
+            _viewModel.VideoQueue.Add(video4);
+            
+            // Act
+            _viewModel.ClearQueueCommand.Execute().Subscribe();
+            
+            // Assert
+            Assert.Empty(_viewModel.VideoQueue);
+            Assert.Equal(0, _viewModel.QueueCount);
+        }
+
+        [Fact]
         public void ClearCompletedCommand_RemovesOnlyCompletedVideos()
         {
             // Arrange

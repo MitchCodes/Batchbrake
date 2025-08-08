@@ -53,11 +53,38 @@ namespace Batchbrake.Utilities
         /// <returns>A task that represents the asynchronous operation. The task result contains a dictionary where keys are categories and values are lists of preset names.</returns>
         public async Task<Dictionary<string, List<string>>> GetAvailablePresetsAsync(bool importFromGui = true)
         {
-            // Use the common method for executing commands and retrieving output
-            var output = await ExecuteHandbrakeCommandAsync(importFromGui ? "--preset-list --preset-import-gui" : "--preset-list");
-
-            // Process the output to extract presets categorized by section
-            return ParsePresetOutput(output);
+            Exception? lastException = null;
+            
+            try
+            {
+                // First try to get presets with GUI import to include custom presets
+                var output = await ExecuteHandbrakeCommandAsync(importFromGui ? "--preset-list --preset-import-gui" : "--preset-list");
+                var presets = ParsePresetOutput(output);
+                
+                // If we got presets with custom presets included, return them
+                if (presets.Any())
+                {
+                    return presets;
+                }
+            }
+            catch (Exception ex)
+            {
+                // If importing GUI presets fails, fall back to built-in presets only
+                System.Diagnostics.Debug.WriteLine("Failed to import GUI presets, falling back to built-in presets only");
+                lastException = ex;
+            }
+            
+            // Fallback: get built-in presets only
+            try
+            {
+                var output = await ExecuteHandbrakeCommandAsync("--preset-list");
+                return ParsePresetOutput(output);
+            }
+            catch (Exception ex)
+            {
+                // If both methods fail, throw the last exception
+                throw lastException ?? ex;
+            }
         }
 
         /// <summary>
@@ -122,7 +149,11 @@ namespace Batchbrake.Utilities
         private string BuildHandBrakeArguments(string inputFile, string outputFile, string preset = null, string additionalOptions = null)
         {
             var arguments = new StringBuilder();
-            arguments.AppendFormat("-i \"{0}\" -o \"{1}\"", inputFile, outputFile);
+            
+            // Always import GUI presets to ensure custom presets are available
+            arguments.Append("--preset-import-gui");
+            
+            arguments.AppendFormat(" -i \"{0}\" -o \"{1}\"", inputFile, outputFile);
 
             // Use preset if specified - this is the most reliable approach
             if (!string.IsNullOrWhiteSpace(preset))

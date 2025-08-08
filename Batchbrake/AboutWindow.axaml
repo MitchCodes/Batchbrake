@@ -1,0 +1,91 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Batchbrake.AboutWindow"
+        Title="About Batchbrake"
+        Width="450" Height="350"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        WindowState="Normal">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="24"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="0,10"/>
+    </Style>
+    <Style Selector="TextBlock.version">
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+      <Setter Property="Foreground" Value="#666666"/>
+      <Setter Property="Margin" Value="0,5"/>
+    </Style>
+    <Style Selector="TextBlock.description">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="TextAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="20,10"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="TextBlock.credits">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="TextAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="20,5"/>
+      <Setter Property="Foreground" Value="#888888"/>
+    </Style>
+  </Window.Styles>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" VerticalAlignment="Center">
+      <!-- App Icon -->
+      <Border Width="64" Height="64" 
+              Background="#0078D4" 
+              CornerRadius="8" 
+              HorizontalAlignment="Center" 
+              Margin="0,20">
+        <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z" 
+                  Width="32" Height="32" 
+                  Foreground="White"/>
+      </Border>
+
+      <!-- App Name -->
+      <TextBlock Classes="title" Text="Batchbrake"/>
+      
+      <!-- Version -->
+      <TextBlock Classes="version" Text="Version 1.0.0"/>
+      
+      <!-- Description -->
+      <TextBlock Classes="description">
+        A cross-platform batch video converter built with Avalonia UI.
+        Converts multiple video files using HandBrakeCLI and FFmpeg with 
+        an intuitive drag-and-drop interface and preset management.
+      </TextBlock>
+      
+      <!-- Credits -->
+      <TextBlock Classes="credits" Text="Built with Avalonia UI Framework"/>
+      <TextBlock Classes="credits" Text="Uses HandBrakeCLI and FFmpeg for video processing"/>
+      
+      <!-- Copyright -->
+      <TextBlock Classes="credits" 
+                 Text="© 2024 Batchbrake. All rights reserved."
+                 Margin="20,20"/>
+    </StackPanel>
+
+    <!-- Close Button -->
+    <Border Grid.Row="1" 
+            Background="#F5F5F5" 
+            BorderBrush="#E0E0E0" 
+            BorderThickness="0,1,0,0"
+            Padding="15">
+      <Button Content="OK" 
+              HorizontalAlignment="Center" 
+              MinWidth="80"
+              Click="CloseButton_Click"
+              IsDefault="True"/>
+    </Border>
+  </Grid>
+</Window>

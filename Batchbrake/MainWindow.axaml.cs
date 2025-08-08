@@ -43,6 +43,12 @@ namespace Batchbrake
             if (viewModel != null)
             {
                 viewModel.IsDraggingOver = false;
+                
+                // Don't allow dropping files while conversion is in progress
+                if (viewModel.IsConverting)
+                {
+                    return;
+                }
             }
 
             List<string> filesDropped = new List<string>();
@@ -97,10 +103,18 @@ namespace Batchbrake
         // Drag Enter - Visual feedback for drag and drop
         private void OnDragEnter(object sender, DragEventArgs e)
         {
+            var viewModel = DataContext as MainWindowViewModel;
+            
+            // Don't allow drag operations while converting
+            if (viewModel?.IsConverting == true)
+            {
+                e.DragEffects = DragDropEffects.None;
+                return;
+            }
+            
             if (HasVideoFiles(e))
             {
                 e.DragEffects = DragDropEffects.Copy;
-                var viewModel = DataContext as MainWindowViewModel;
                 if (viewModel != null)
                 {
                     viewModel.IsDraggingOver = true;
@@ -115,6 +129,15 @@ namespace Batchbrake
         // Drag Over - Maintain visual feedback
         private void OnDragOver(object sender, DragEventArgs e)
         {
+            var viewModel = DataContext as MainWindowViewModel;
+            
+            // Don't allow drag operations while converting
+            if (viewModel?.IsConverting == true)
+            {
+                e.DragEffects = DragDropEffects.None;
+                return;
+            }
+            
             if (HasVideoFiles(e))
             {
                 e.DragEffects = DragDropEffects.Copy;
