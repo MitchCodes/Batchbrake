@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace Batchbrake.Utilities
 {
@@ -45,6 +46,39 @@ namespace Batchbrake.Utilities
             {
                 var output = process.StandardError.ReadToEnd();
                 process.WaitForExit();
+
+                if (process.ExitCode != 0 && process.ExitCode != 1)
+                {
+                    throw new Exception($"FFmpeg exited with code {process.ExitCode}. Output: {output}");
+                }
+
+                return ParseVideoInfo(output, filePath);
+            }
+        }
+
+        /// <summary>
+        /// Asynchronously retrieves the details of the specified video file.
+        /// </summary>
+        /// <param name="filePath">The path to the video file.</param>
+        /// <returns>The details of the video file.</returns>
+        public async Task<VideoInfoModel> GetVideoInfoAsync(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+                
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = _ffmpegPath,
+                Arguments = $"-i \"{filePath}\"",
+                RedirectStandardError = true, // FFmpeg outputs metadata to standard error
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using (var process = Process.Start(startInfo))
+            {
+                var output = await process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
 
                 if (process.ExitCode != 0 && process.ExitCode != 1)
                 {

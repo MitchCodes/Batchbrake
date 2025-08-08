@@ -144,25 +144,44 @@ namespace Batchbrake.ViewModels
         {
             _filePickerService = filePickerService;
 
-            RxApp.MainThreadScheduler.Schedule(LoadPresets);
+            Task.Run(LoadPresetsAsync);
         }
 
-        private async void LoadPresets()
+        private async Task LoadPresetsAsync()
         {
-            var handbrakeCliWrapper = new HandbrakeCLIWrapper();
-            var presets = await handbrakeCliWrapper.GetAvailablePresetsAsync();
-
-            Presets.Clear();
-
-            foreach (var presetCategory in presets.Keys)
+            try
             {
-                foreach (var preset in presets[presetCategory])
-                {
-                    Presets.Add(preset);
-                }
-            }
+                var handbrakeCliWrapper = new HandbrakeCLIWrapper();
+                var presets = await handbrakeCliWrapper.GetAvailablePresetsAsync();
 
-            DefaultPreset = Presets.FirstOrDefault();
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    Presets.Clear();
+
+                    foreach (var presetCategory in presets.Keys)
+                    {
+                        foreach (var preset in presets[presetCategory])
+                        {
+                            Presets.Add(preset);
+                        }
+                    }
+
+                    DefaultPreset = Presets.FirstOrDefault();
+                });
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Warning: Could not load HandBrake presets: {ex.Message}\n";
+                    // Add some default presets if HandBrake is not available
+                    Presets.Clear();
+                    Presets.Add("Fast 1080p30");
+                    Presets.Add("HQ 1080p30 Surround");
+                    Presets.Add("Super HQ 1080p30 Surround");
+                    DefaultPreset = Presets.FirstOrDefault();
+                });
+            }
         }
 
         public async Task AddNewFile(string file)
@@ -280,14 +299,18 @@ namespace Batchbrake.ViewModels
         {
             // Call FFmpeg wrapper to get video information (e.g., duration, resolution, etc.)
             var ffmpegWrapper = new FFmpegWrapper("ffmpeg");
-            return ffmpegWrapper.GetVideoInfo(filePath);
+            return await ffmpegWrapper.GetVideoInfoAsync(filePath);
         }
 
         // Start Conversion Command
         public ReactiveCommand<Unit, Unit> StartConversionCommand => ReactiveCommand.CreateFromTask(async () =>
         {
-            // Initial UI update on main thread
-            if (!IsHandbrakeCLIAvailable())
+            RxApp.MainThreadScheduler.Schedule(() =>
+            {
+                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Start Conversion button clicked\n";
+            });
+            // Initial UI update on main thread - check availability first
+            if (!await IsHandbrakeCLIAvailableAsync())
             {
                 RxApp.MainThreadScheduler.Schedule(() =>
                 {
@@ -457,12 +480,12 @@ namespace Batchbrake.ViewModels
         }
 
         // Auto-detect HandbrakeCLI
-        private bool IsHandbrakeCLIAvailable()
+        private async Task<bool> IsHandbrakeCLIAvailableAsync()
         {
             try
             {
                 var handbrakeWrapper = new HandbrakeCLIWrapper();
-                return handbrakeWrapper.IsAvailableAsync().Result;
+                return await handbrakeWrapper.IsAvailableAsync();
             }
             catch
             {

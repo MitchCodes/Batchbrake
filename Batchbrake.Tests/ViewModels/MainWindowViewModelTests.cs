@@ -168,7 +168,7 @@ namespace Batchbrake.Tests.ViewModels
                 .ReturnsAsync(mockFiles);
 
             // Act
-            _viewModel.AddVideosCommand.Execute().Subscribe();
+            await _viewModel.AddVideosCommand.Execute();
 
             // Assert
             _mockFilePickerService.Verify(x => x.OpenFilePickerAsync(It.IsAny<FilePickerOpenOptions>()), Times.Once);

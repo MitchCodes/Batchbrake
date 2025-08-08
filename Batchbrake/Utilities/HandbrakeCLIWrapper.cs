@@ -186,7 +186,7 @@ namespace Batchbrake.Utilities
                     _currentProcess.BeginOutputReadLine();
                     _currentProcess.BeginErrorReadLine();
 
-                    await Task.Run(() => _currentProcess.WaitForExit(), _cancellationTokenSource.Token);
+                    await _currentProcess.WaitForExitAsync(_cancellationTokenSource.Token);
 
                     if (_cancellationTokenSource.Token.IsCancellationRequested)
                     {
