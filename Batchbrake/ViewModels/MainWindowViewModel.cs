@@ -16,12 +16,14 @@ using Avalonia.Controls.Shapes;
 using System.Diagnostics;
 using System.Reactive.Concurrency;
 using System.Collections.Specialized;
+using System.Threading;
 
 namespace Batchbrake.ViewModels
 {
-    public class MainWindowViewModel : ViewModelBase
+    public class MainWindowViewModel : ViewModelBase, IDisposable
     {
         private IFilePickerService _filePickerService;
+        private CancellationTokenSource? _conversionCancellationTokenSource;
 
         private ObservableCollection<VideoModelViewModel> _videoQueue = new ObservableCollection<VideoModelViewModel>();
         public ObservableCollection<VideoModelViewModel> VideoQueue
@@ -247,6 +249,9 @@ namespace Batchbrake.ViewModels
         // Stop Conversion Command
         public ReactiveCommand<Unit, Unit> StopConversionCommand => ReactiveCommand.Create(() =>
         {
+            // Cancel the conversion process
+            _conversionCancellationTokenSource?.Cancel();
+            
             IsConverting = false;
             StatusText = "Conversion stopped";
             LogOutput += $"[{DateTime.Now:HH:mm:ss}] Conversion stopped by user\n";
@@ -281,100 +286,173 @@ namespace Batchbrake.ViewModels
         // Start Conversion Command
         public ReactiveCommand<Unit, Unit> StartConversionCommand => ReactiveCommand.CreateFromTask(async () =>
         {
+            // Initial UI update on main thread
             if (!IsHandbrakeCLIAvailable())
             {
-                StatusText = "HandBrakeCLI not found";
-                LogOutput += $"[{DateTime.Now:HH:mm:ss}] ERROR: HandBrakeCLI not found at specified path\n";
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    StatusText = "HandBrakeCLI not found";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] ERROR: HandBrakeCLI not found at specified path\n";
+                });
                 return;
             }
 
-            IsConverting = true;
-            StatusText = "Starting conversion...";
-            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Starting batch conversion of {VideoQueue.Count} videos\n";
+            // Create cancellation token for this conversion batch
+            _conversionCancellationTokenSource?.Cancel();
+            _conversionCancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = _conversionCancellationTokenSource.Token;
 
-            var videosToProcess = VideoQueue.Where(v => v.ConversionStatus == VideoConversionStatus.NotStarted || 
-                                                      v.ConversionStatus == VideoConversionStatus.Queued).ToList();
-
-            var semaphore = new System.Threading.SemaphoreSlim(ParallelInstances, ParallelInstances);
-            var tasks = videosToProcess.Select(async video =>
+            RxApp.MainThreadScheduler.Schedule(() =>
             {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await ProcessVideo(video);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            }).ToArray();
+                IsConverting = true;
+                StatusText = "Starting conversion...";
+                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Starting batch conversion of {VideoQueue.Count} videos\n";
+            });
 
-            await Task.WhenAll(tasks);
+            try
+            {
+                // Get videos to process (this can be done off UI thread)
+                var videosToProcess = VideoQueue.Where(v => v.ConversionStatus == VideoConversionStatus.NotStarted || 
+                                                          v.ConversionStatus == VideoConversionStatus.Queued).ToList();
 
-            IsConverting = false;
-            StatusText = $"Conversion completed. {CompletedCount} videos processed.";
-            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Batch conversion completed\n";
+                // Run the entire conversion process on background threads
+                await Task.Run(async () =>
+                {
+                    var semaphore = new System.Threading.SemaphoreSlim(ParallelInstances, ParallelInstances);
+                    var tasks = videosToProcess.Select(async video =>
+                    {
+                        await semaphore.WaitAsync(cancellationToken);
+                        try
+                        {
+                            await ProcessVideo(video, cancellationToken);
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }).ToArray();
+
+                    await Task.WhenAll(tasks);
+                }, cancellationToken);
+
+                // Final UI update on main thread
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    IsConverting = false;
+                    StatusText = $"Conversion completed. {CompletedCount} videos processed.";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Batch conversion completed\n";
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    IsConverting = false;
+                    StatusText = "Conversion cancelled";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Batch conversion cancelled by user\n";
+                });
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    IsConverting = false;
+                    StatusText = "Conversion failed";
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Batch conversion failed: {ex.Message}\n";
+                });
+            }
         });
 
-        private async Task ProcessVideo(VideoModelViewModel video)
+        private async Task ProcessVideo(VideoModelViewModel video, CancellationToken cancellationToken)
         {
             try
             {
-                video.ConversionStatus = VideoConversionStatus.InProgress;
-                video.ConversionProgress = 0;
-                video.StartTime = DateTime.Now;
-                
-                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Starting conversion of {video.VideoInfo?.FileName}\n";
+                // Check for cancellation before starting
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Update UI on main thread
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    video.ConversionStatus = VideoConversionStatus.InProgress;
+                    video.ConversionProgress = 0;
+                    video.StartTime = DateTime.Now;
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Starting conversion of {video.VideoInfo?.FileName}\n";
+                });
                 
                 var handbrakeCliWrapper = new HandbrakeCLIWrapper();
                 
-                // Subscribe to progress events
+                // Subscribe to progress events with UI thread marshaling
                 handbrakeCliWrapper.ProgressChanged += (sender, e) =>
                 {
-                    video.ConversionProgress = e.Progress;
+                    RxApp.MainThreadScheduler.Schedule(() =>
+                    {
+                        video.ConversionProgress = e.Progress;
+                    });
                 };
                 
                 handbrakeCliWrapper.ConversionCompleted += (sender, e) =>
                 {
-                    video.EndTime = DateTime.Now;
-                    if (e.Success)
+                    RxApp.MainThreadScheduler.Schedule(() =>
                     {
-                        video.ConversionStatus = VideoConversionStatus.Completed;
-                        video.ConversionProgress = 100;
-                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted {video.VideoInfo?.FileName}\n";
-                        
-                        if (DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
+                        video.EndTime = DateTime.Now;
+                        if (e.Success)
                         {
-                            try
+                            video.ConversionStatus = VideoConversionStatus.Completed;
+                            video.ConversionProgress = 100;
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted {video.VideoInfo?.FileName}\n";
+                            
+                            if (DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
                             {
-                                File.Delete(video.InputFilePath);
-                                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Deleted source file {video.VideoInfo?.FileName}\n";
-                            }
-                            catch (Exception ex)
-                            {
-                                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to delete source file: {ex.Message}\n";
+                                try
+                                {
+                                    File.Delete(video.InputFilePath);
+                                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Deleted source file {video.VideoInfo?.FileName}\n";
+                                }
+                                catch (Exception deleteEx)
+                                {
+                                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to delete source file: {deleteEx.Message}\n";
+                                }
                             }
                         }
-                    }
-                    else
-                    {
-                        video.ConversionStatus = VideoConversionStatus.Failed;
-                        video.ErrorMessage = e.ErrorMessage;
-                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to convert {video.VideoInfo?.FileName}: {e.ErrorMessage}\n";
-                    }
+                        else
+                        {
+                            video.ConversionStatus = VideoConversionStatus.Failed;
+                            video.ErrorMessage = e.ErrorMessage;
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to convert {video.VideoInfo?.FileName}: {e.ErrorMessage}\n";
+                        }
+                    });
                 };
                 
+                // Run the actual conversion on a background thread with cancellation support
                 await handbrakeCliWrapper.ConvertVideoAsync(
                     video.InputFilePath!, 
                     video.OutputFilePath!, 
-                    video.Preset);
+                    video.Preset,
+                    null,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Update UI on main thread for cancellation
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    video.ConversionStatus = VideoConversionStatus.Cancelled;
+                    video.ConversionProgress = 0;
+                    video.EndTime = DateTime.Now;
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Conversion cancelled for {video.VideoInfo?.FileName}\n";
+                });
+                throw; // Re-throw to propagate cancellation
             }
             catch (Exception ex)
             {
-                video.ConversionStatus = VideoConversionStatus.Failed;
-                video.ErrorMessage = ex.Message;
-                video.EndTime = DateTime.Now;
-                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Error processing {video.VideoInfo?.FileName}: {ex.Message}\n";
+                // Update UI on main thread for error handling
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    video.ConversionStatus = VideoConversionStatus.Failed;
+                    video.ErrorMessage = ex.Message;
+                    video.EndTime = DateTime.Now;
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Error processing {video.VideoInfo?.FileName}: {ex.Message}\n";
+                });
             }
         }
 
@@ -432,6 +510,12 @@ namespace Batchbrake.ViewModels
             this.RaisePropertyChanged(nameof(ProcessingCount));
             this.RaisePropertyChanged(nameof(CompletedCount));
             this.RaisePropertyChanged(nameof(CanStartConversion));
+        }
+
+        public void Dispose()
+        {
+            _conversionCancellationTokenSource?.Cancel();
+            _conversionCancellationTokenSource?.Dispose();
         }
     }
 }
