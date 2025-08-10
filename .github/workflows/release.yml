@@ -124,9 +124,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Upload Checksums
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: checksums
+          name: checksums-${{ matrix.runtime }}
           path: checksums-windows-${{ matrix.runtime }}.txt
 
 
@@ -135,9 +135,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all checksums
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: checksums
+          pattern: checksums-*
+          merge-multiple: true
           
       - name: Combine checksums
         run: |
