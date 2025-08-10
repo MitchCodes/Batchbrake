@@ -119,7 +119,7 @@ jobs:
           
       - name: Upload Release Asset
         run: |
-          gh release upload ${{ needs.create-release.outputs.tag }} Batchbrake-Windows-${{ matrix.runtime }}.zip
+          gh release upload ${{ needs.create-release.outputs.tag }} Batchbrake-Windows-${{ matrix.runtime }}.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
@@ -150,6 +150,6 @@ jobs:
           
       - name: Upload combined checksums
         run: |
-          gh release upload ${{ needs.create-release.outputs.tag }} checksums.txt
+          gh release upload ${{ needs.create-release.outputs.tag }} checksums.txt --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
