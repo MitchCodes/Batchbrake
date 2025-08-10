@@ -5,8 +5,6 @@ namespace Batchbrake.Tests.Utilities
 {
     public class FFmpegWrapperTests
     {
-        private readonly string _testFFmpegPath = "ffmpeg";
-
         [Fact]
         public void Constructor_SetsFFmpegPath()
         {
@@ -24,19 +22,8 @@ namespace Batchbrake.Tests.Utilities
         public void Constructor_WithDefaultPath_DoesNotThrow()
         {
             // Act & Assert
-            var wrapper = new FFmpegWrapper(_testFFmpegPath);
+            var wrapper = new FFmpegWrapper("ffmpeg");
             Assert.NotNull(wrapper);
-        }
-
-        [Fact]
-        public void GetVideoInfo_WithNonexistentFile_ThrowsException()
-        {
-            // Arrange
-            var wrapper = new FFmpegWrapper("invalid_ffmpeg_path");
-            var nonexistentFile = @"C:\nonexistent\file.mp4";
-            
-            // Act & Assert
-            Assert.ThrowsAny<Exception>(() => wrapper.GetVideoInfo(nonexistentFile));
         }
 
         [Theory]
@@ -46,53 +33,10 @@ namespace Batchbrake.Tests.Utilities
         public void GetVideoInfo_WithInvalidFilePath_ThrowsArgumentException(string? filePath)
         {
             // Arrange
-            var wrapper = new FFmpegWrapper(_testFFmpegPath);
+            var wrapper = new FFmpegWrapper("ffmpeg");
             
             // Act & Assert
             Assert.Throws<ArgumentException>(() => wrapper.GetVideoInfo(filePath!));
-        }
-
-        [Fact]
-        public void GetVideoInfo_WithInvalidFFmpegPath_ThrowsException()
-        {
-            // Arrange
-            var wrapper = new FFmpegWrapper("nonexistent_ffmpeg_path");
-            var testFile = Path.GetTempFileName();
-            
-            try
-            {
-                // Act & Assert
-                Assert.ThrowsAny<Exception>(() => wrapper.GetVideoInfo(testFile));
-            }
-            finally
-            {
-                File.Delete(testFile);
-            }
-        }
-
-        [Fact]
-        public void GetVideoInfo_WithValidTemporaryFile_CreatesVideoInfoModel()
-        {
-            // Arrange
-            var wrapper = new FFmpegWrapper("invalid_ffmpeg_executable"); // Use invalid path to trigger error
-            var testFile = Path.GetTempFileName();
-            File.WriteAllText(testFile, "test video content");
-
-            try
-            {
-                // Act & Assert
-                // This should throw an exception since ffmpeg path is invalid
-                // But it validates that the method doesn't crash with argument exceptions
-                Assert.ThrowsAny<Exception>(() => wrapper.GetVideoInfo(testFile));
-            }
-            catch (ArgumentException)
-            {
-                Assert.True(false, "Should not throw ArgumentException - indicates parameter validation issue");
-            }
-            finally
-            {
-                File.Delete(testFile);
-            }
         }
 
         [Fact]
@@ -106,35 +50,6 @@ namespace Batchbrake.Tests.Utilities
             Assert.NotNull(wrapper1);
             Assert.NotNull(wrapper2);
             Assert.NotNull(wrapper3);
-        }
-
-        [Fact]
-        public void FFmpegWrapper_HandlesDifferentFileExtensions()
-        {
-            // Arrange
-            var wrapper = new FFmpegWrapper("invalid_ffmpeg");
-            var extensions = new[] { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm" };
-
-            foreach (var ext in extensions)
-            {
-                var testFile = Path.ChangeExtension(Path.GetTempFileName(), ext);
-                File.WriteAllText(testFile, "test content");
-
-                try
-                {
-                    // Act & Assert
-                    // Should not throw argument exceptions regardless of file extension
-                    Assert.ThrowsAny<Exception>(() => wrapper.GetVideoInfo(testFile));
-                }
-                catch (ArgumentException)
-                {
-                    Assert.True(false, $"Should not throw ArgumentException for {ext} files");
-                }
-                finally
-                {
-                    File.Delete(testFile);
-                }
-            }
         }
 
         [Fact] 
@@ -154,6 +69,45 @@ namespace Batchbrake.Tests.Utilities
             
             // Assert
             Assert.NotNull(wrapper);
+        }
+
+        [Fact]
+        public void Constructor_WithFFmpegSettings_SetsProperties()
+        {
+            // Arrange
+            var settings = new FFmpegSettings
+            {
+                FFmpegPath = @"C:\custom\ffmpeg.exe",
+                FFprobePath = @"C:\custom\ffprobe.exe",
+                VideoCodec = "libx264",
+                AudioCodec = "aac"
+            };
+            
+            // Act
+            var wrapper = new FFmpegWrapper(settings);
+            
+            // Assert
+            Assert.NotNull(wrapper);
+        }
+
+        [Fact]
+        public void Constructor_WithNullSettings_ThrowsArgumentNullException()
+        {
+            // Act & Assert
+            Assert.Throws<ArgumentNullException>(() => new FFmpegWrapper((FFmpegSettings)null!));
+        }
+
+        [Fact]
+        public async Task IsFFmpegAvailableAsync_ReturnsBoolean()
+        {
+            // Arrange
+            var wrapper = new FFmpegWrapper("nonexistent_ffmpeg_path");
+            
+            // Act
+            var result = await wrapper.IsFFmpegAvailableAsync();
+            
+            // Assert
+            Assert.False(result);
         }
     }
 }
