@@ -24,6 +24,7 @@ namespace Batchbrake.ViewModels
     public class MainWindowViewModel : ViewModelBase, IDisposable
     {
         private IFilePickerService _filePickerService;
+        private IFFmpegWrapper _ffmpegWrapper;
         private CancellationTokenSource? _conversionCancellationTokenSource;
         private FFmpegSettings _ffmpegSettings = new FFmpegSettings();
         private HandBrakeSettings _handBrakeSettings = new HandBrakeSettings();
@@ -164,6 +165,23 @@ namespace Batchbrake.ViewModels
         public MainWindowViewModel(IFilePickerService filePickerService) : this()
         {
             _filePickerService = filePickerService;
+            _ffmpegWrapper = new FFmpegWrapper(_ffmpegSettings);
+
+            // Load HandBrake settings first, then presets (which depend on the settings)
+            Task.Run(async () =>
+            {
+                await LoadHandBrakeSettingsAsync();
+                await LoadPresetsAsync();
+            });
+            Task.Run(LoadFFmpegSettingsAsync);
+            Task.Run(LoadPreferencesAsync);
+            Task.Run(LoadSessionAsync);
+        }
+
+        public MainWindowViewModel(IFilePickerService filePickerService, IFFmpegWrapper ffmpegWrapper) : this()
+        {
+            _filePickerService = filePickerService;
+            _ffmpegWrapper = ffmpegWrapper;
 
             // Load HandBrake settings first, then presets (which depend on the settings)
             Task.Run(async () =>
@@ -491,8 +509,11 @@ namespace Batchbrake.ViewModels
         private async Task<VideoInfoModel> GetVideoInfoAsync(string filePath)
         {
             // Call FFmpeg wrapper to get video information (e.g., duration, resolution, etc.)
-            var ffmpegWrapper = new FFmpegWrapper(_ffmpegSettings);
-            return await ffmpegWrapper.GetVideoInfoAsync(filePath);
+            if (_ffmpegWrapper == null)
+            {
+                _ffmpegWrapper = new FFmpegWrapper(_ffmpegSettings);
+            }
+            return await _ffmpegWrapper.GetVideoInfoAsync(filePath);
         }
 
         // Start Conversion Command

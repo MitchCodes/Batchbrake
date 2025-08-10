@@ -1,4 +1,5 @@
 using Batchbrake.Services;
+using Batchbrake.Utilities;
 using Batchbrake.ViewModels;
 using Batchbrake.Models;
 using Moq;
@@ -11,19 +12,33 @@ namespace Batchbrake.Tests.ViewModels
     public class MainWindowViewModelTests
     {
         private readonly Mock<IFilePickerService> _mockFilePickerService;
+        private readonly Mock<IFFmpegWrapper> _mockFFmpegWrapper;
         private readonly MainWindowViewModel _viewModel;
 
         public MainWindowViewModelTests()
         {
             _mockFilePickerService = new Mock<IFilePickerService>();
-            _viewModel = new MainWindowViewModel(_mockFilePickerService.Object);
+            _mockFFmpegWrapper = new Mock<IFFmpegWrapper>();
+            
+            // Setup default mock behavior for FFmpeg
+            _mockFFmpegWrapper.Setup(x => x.GetVideoInfoAsync(It.IsAny<string>()))
+                .ReturnsAsync(new VideoInfoModel
+                {
+                    Duration = TimeSpan.FromMinutes(10),
+                    Resolution = "1920x1080",
+                    Codec = "H.264",
+                    FileSize = "100 MB",
+                    FileSizeBytes = 104857600
+                });
+            
+            _viewModel = new MainWindowViewModel(_mockFilePickerService.Object, _mockFFmpegWrapper.Object);
         }
 
         [Fact]
         public void Constructor_SetsDefaultValues()
         {
             // Arrange & Act
-            var viewModel = new MainWindowViewModel(_mockFilePickerService.Object);
+            var viewModel = new MainWindowViewModel(_mockFilePickerService.Object, _mockFFmpegWrapper.Object);
 
             // Assert
             Assert.NotNull(viewModel.VideoQueue);
@@ -103,6 +118,9 @@ namespace Batchbrake.Tests.ViewModels
             var addedVideo = _viewModel.VideoQueue.First();
             Assert.Equal(filePath, addedVideo.InputFilePath);
             Assert.Equal(0, addedVideo.Index);
+            
+            // Verify FFmpeg was called
+            _mockFFmpegWrapper.Verify(x => x.GetVideoInfoAsync(filePath), Times.Once);
         }
 
         [Fact]
@@ -117,6 +135,9 @@ namespace Batchbrake.Tests.ViewModels
             
             // Assert
             Assert.Single(_viewModel.VideoQueue);
+            
+            // Verify FFmpeg was only called once for the first add
+            _mockFFmpegWrapper.Verify(x => x.GetVideoInfoAsync(filePath), Times.Once);
         }
 
         [Fact]
@@ -173,6 +194,9 @@ namespace Batchbrake.Tests.ViewModels
             // Assert
             _mockFilePickerService.Verify(x => x.OpenFilePickerAsync(It.IsAny<FilePickerOpenOptions>()), Times.Once);
             Assert.Equal(2, _viewModel.VideoQueue.Count);
+            
+            // Verify FFmpeg was called for each file
+            _mockFFmpegWrapper.Verify(x => x.GetVideoInfoAsync(It.IsAny<string>()), Times.Exactly(2));
         }
 
         [Fact]

@@ -12,7 +12,7 @@ namespace Batchbrake.Utilities
     /// <summary>
     /// Provides functionality to retrieve video details using FFmpeg.
     /// </summary>
-    public class FFmpegWrapper
+    public class FFmpegWrapper : IFFmpegWrapper
     {
         private readonly string _ffmpegPath;
         private readonly FFmpegSettings _settings;

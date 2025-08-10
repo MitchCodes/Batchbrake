@@ -1,5 +1,6 @@
 using Batchbrake.Models;
 using Batchbrake.Services;
+using Batchbrake.Utilities;
 using Batchbrake.ViewModels;
 using Moq;
 using System.IO;
@@ -50,7 +51,20 @@ namespace Batchbrake.Tests.Services
         {
             // Arrange
             var mockFilePickerService = new Mock<IFilePickerService>();
-            var viewModel = new MainWindowViewModel(mockFilePickerService.Object);
+            var mockFFmpegWrapper = new Mock<IFFmpegWrapper>();
+            
+            // Setup mock to return video info
+            mockFFmpegWrapper.Setup(x => x.GetVideoInfoAsync(It.IsAny<string>()))
+                .ReturnsAsync(new VideoInfoModel
+                {
+                    Duration = TimeSpan.FromMinutes(10),
+                    Resolution = "1920x1080",
+                    Codec = "H.264",
+                    FileSize = "100 MB",
+                    FileSizeBytes = 104857600
+                });
+            
+            var viewModel = new MainWindowViewModel(mockFilePickerService.Object, mockFFmpegWrapper.Object);
             
             // Add a test video
             await viewModel.AddNewFile(@"C:\test\video.mp4");
@@ -83,7 +97,20 @@ namespace Batchbrake.Tests.Services
         {
             // Arrange
             var mockFilePickerService = new Mock<IFilePickerService>();
-            var viewModel = new MainWindowViewModel(mockFilePickerService.Object);
+            var mockFFmpegWrapper = new Mock<IFFmpegWrapper>();
+            
+            // Setup mock to return video info
+            mockFFmpegWrapper.Setup(x => x.GetVideoInfoAsync(It.IsAny<string>()))
+                .ReturnsAsync(new VideoInfoModel
+                {
+                    Duration = TimeSpan.FromMinutes(10),
+                    Resolution = "1920x1080",
+                    Codec = "H.264",
+                    FileSize = "100 MB",
+                    FileSizeBytes = 104857600
+                });
+            
+            var viewModel = new MainWindowViewModel(mockFilePickerService.Object, mockFFmpegWrapper.Object);
             
             // Wait for async initialization to complete
             await Task.Delay(200);
@@ -123,7 +150,20 @@ namespace Batchbrake.Tests.Services
         {
             // Arrange
             var mockFilePickerService = new Mock<IFilePickerService>();
-            var viewModel = new MainWindowViewModel(mockFilePickerService.Object);
+            var mockFFmpegWrapper = new Mock<IFFmpegWrapper>();
+            
+            // Setup mock to return video info
+            mockFFmpegWrapper.Setup(x => x.GetVideoInfoAsync(It.IsAny<string>()))
+                .ReturnsAsync(new VideoInfoModel
+                {
+                    Duration = TimeSpan.FromMinutes(10),
+                    Resolution = "1920x1080",
+                    Codec = "H.264",
+                    FileSize = "100 MB",
+                    FileSizeBytes = 104857600
+                });
+            
+            var viewModel = new MainWindowViewModel(mockFilePickerService.Object, mockFFmpegWrapper.Object);
             
             // Wait for async initialization to complete
             await Task.Delay(200);
@@ -167,7 +207,20 @@ namespace Batchbrake.Tests.Services
             };
 
             var mockFilePickerService = new Mock<IFilePickerService>();
-            var viewModel = new MainWindowViewModel(mockFilePickerService.Object);
+            var mockFFmpegWrapper = new Mock<IFFmpegWrapper>();
+            
+            // Setup mock to return video info
+            mockFFmpegWrapper.Setup(x => x.GetVideoInfoAsync(It.IsAny<string>()))
+                .ReturnsAsync(new VideoInfoModel
+                {
+                    Duration = TimeSpan.FromMinutes(10),
+                    Resolution = "1920x1080",
+                    Codec = "H.264",
+                    FileSize = "100 MB",
+                    FileSizeBytes = 104857600
+                });
+            
+            var viewModel = new MainWindowViewModel(mockFilePickerService.Object, mockFFmpegWrapper.Object);
 
             // Wait for initialization and clear any existing queue
             await Task.Delay(200); // Give time for initialization
