@@ -1,6 +1,6 @@
 # Batchbrake
 
-A cross-platform desktop application for batch video conversion using HandBrakeCLI. Built with Avalonia UI and .NET 8, Batchbrake provides an intuitive drag-and-drop interface for managing video encoding queues with preset management and parallel processing capabilities.
+A Windows desktop application for batch video conversion using HandBrakeCLI. Built with Avalonia UI and .NET 8, Batchbrake provides an intuitive drag-and-drop interface for managing video encoding queues with preset management and parallel processing capabilities. While the application is built on cross-platform technology, official releases are provided for Windows only.
 
 ## Features
 
@@ -25,7 +25,7 @@ A cross-platform desktop application for batch video conversion using HandBrakeC
 - **Audio & Subtitle Preservation**: Maintain multiple audio tracks and subtitle streams
 
 ### User Interface
-- **Cross-Platform**: Runs on Windows, macOS, and Linux
+- **Windows Native**: Optimized for Windows 10/11
 - **Modern UI**: Clean, responsive interface built with Avalonia UI
 - **Real-time Logging**: Detailed conversion logs with timestamps
 - **Settings Management**: Persistent application settings and preferences
@@ -34,41 +34,34 @@ A cross-platform desktop application for batch video conversion using HandBrakeC
 ## System Requirements
 
 ### Minimum Requirements
-- **OS**: Windows 10, macOS 10.15, or Linux (Ubuntu 18.04+)
+- **OS**: Windows 10 or later (64-bit, 32-bit, or ARM64)
 - **RAM**: 4 GB RAM
 - **Storage**: 100 MB for application + space for video processing
-- **.NET**: .NET 8 Runtime (automatically included with installer)
+- **.NET**: .NET 8 Runtime (automatically included with releases)
 
 ### Required Dependencies
 - **HandBrakeCLI**: Required for video conversion
-  - Windows: Download from [HandBrake.fr](https://handbrake.fr/downloads.php)
-  - macOS: `brew install handbrake`
-  - Linux: `sudo apt install handbrake-cli` or equivalent
+  - Download from [HandBrake.fr](https://handbrake.fr/downloads.php)
+  - Or install via package managers like Chocolatey: `choco install handbrake-cli`
 - **FFmpeg** (Optional): For enhanced video metadata extraction
-  - Windows: Download from [FFmpeg.org](https://ffmpeg.org/download.html)
-  - macOS: `brew install ffmpeg`
-  - Linux: `sudo apt install ffmpeg`
+  - Download from [FFmpeg.org](https://ffmpeg.org/download.html)
+  - Or install via Chocolatey: `choco install ffmpeg`
 
 ## Installation
 
 ### Windows
 1. Download the latest release from the [Releases page](https://github.com/yourusername/batchbrake/releases)
-2. Run the installer (`Batchbrake-Setup-x.x.x.exe`)
-3. Follow the installation wizard
+   - `Batchbrake-Windows-win-x64.zip` for 64-bit systems (recommended)
+   - `Batchbrake-Windows-win-x86.zip` for 32-bit systems
+   - `Batchbrake-Windows-win-arm64.zip` for ARM64 systems
+2. Extract the ZIP file to your desired location
+3. Run `Batchbrake.exe`
 4. Install HandBrakeCLI if not already present
 
-### macOS
-1. Download the `.dmg` file from releases
-2. Drag Batchbrake to Applications folder
-3. Install dependencies: `brew install handbrake ffmpeg`
-
-### Linux
-1. Download the `.AppImage` or `.deb` package
-2. For AppImage: `chmod +x Batchbrake-x.x.x.AppImage && ./Batchbrake-x.x.x.AppImage`
-3. For Debian/Ubuntu: `sudo dpkg -i batchbrake_x.x.x_amd64.deb`
-4. Install dependencies: `sudo apt install handbrake-cli ffmpeg`
-
 ### Build from Source
+
+**Note**: While official releases are Windows-only, the source code can still be built and run on Windows, macOS, and Linux due to the cross-platform nature of .NET and Avalonia UI.
+
 ```bash
 git clone https://github.com/yourusername/batchbrake.git
 cd batchbrake
@@ -76,6 +69,11 @@ dotnet restore
 dotnet build
 dotnet run --project Batchbrake/Batchbrake.csproj
 ```
+
+For other platforms (macOS/Linux), you'll need to:
+- Install .NET 8 SDK
+- Install HandBrakeCLI and FFmpeg via your platform's package manager
+- Build and run from source as shown above
 
 ## Quick Start Guide
 
@@ -131,8 +129,6 @@ Access via Tools → Preferences:
 ### Advanced Configuration
 Configuration files are stored in:
 - **Windows**: `%APPDATA%\Batchbrake\`
-- **macOS**: `~/Library/Application Support/Batchbrake/`
-- **Linux**: `~/.config/Batchbrake/`
 
 Files include:
 - `handbrake-settings.json`: HandBrake configuration
@@ -174,7 +170,7 @@ Files include:
 **HandBrakeCLI Not Found**
 - Ensure HandBrakeCLI is installed and accessible
 - Check path in Tools → HandBrake Settings
-- Verify executable permissions on Linux/macOS
+- Add HandBrakeCLI to your system PATH or specify full path
 
 **Conversion Fails**
 - Check input file integrity
@@ -233,8 +229,10 @@ dotnet build --configuration Release
 # Run tests
 dotnet test
 
-# Create deployment package
+# Create Windows deployment packages
 dotnet publish -c Release -r win-x64 --self-contained
+dotnet publish -c Release -r win-x86 --self-contained
+dotnet publish -c Release -r win-arm64 --self-contained
 ```
 
 ### Contributing
@@ -263,4 +261,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built-in and custom preset support
 - Parallel processing capabilities
 - Session management
-- Cross-platform support
+- Windows support (x64, x86, ARM64)
