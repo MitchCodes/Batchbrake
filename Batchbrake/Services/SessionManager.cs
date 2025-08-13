@@ -115,6 +115,12 @@ namespace Batchbrake.Services
                         Presets = viewModel.Presets
                     };
 
+                    // Restore clips if they exist
+                    if (videoData.Clips != null && videoData.Clips.Count > 0)
+                    {
+                        videoViewModel.Clips = new System.Collections.ObjectModel.ObservableCollection<ClipModel>(videoData.Clips);
+                    }
+
                     viewModel.VideoQueue.Add(videoViewModel);
                 }
             }
@@ -147,7 +153,8 @@ namespace Batchbrake.Services
                     VideoInfo = video.VideoInfo,
                     ErrorMessage = video.ErrorMessage,
                     StartTime = video.StartTime,
-                    EndTime = video.EndTime
+                    EndTime = video.EndTime,
+                    Clips = video.Clips?.ToList() // Convert ObservableCollection to List for serialization
                 });
             }
 

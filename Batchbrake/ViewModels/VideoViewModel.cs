@@ -115,8 +115,14 @@ namespace Batchbrake.ViewModels
             set
             {
                 this.RaiseAndSetIfChanged(ref _clips, value);
+                this.RaisePropertyChanged(nameof(HasSegments));
             }
         }
+
+        /// <summary>
+        /// Gets a value indicating whether this video has segments defined.
+        /// </summary>
+        public bool HasSegments => Clips != null && Clips.Count > 0;
 
         private VideoConversionStatus _conversionStatus;
         /// <summary>

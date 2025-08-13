@@ -90,5 +90,10 @@ namespace Batchbrake.Models
         /// End time of conversion
         /// </summary>
         public DateTime? EndTime { get; set; }
+
+        /// <summary>
+        /// List of video segments/clips to be extracted
+        /// </summary>
+        public List<ClipModel>? Clips { get; set; }
     }
 }

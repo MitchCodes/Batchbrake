@@ -189,7 +189,7 @@
                 <ColumnDefinition Width="*" MinWidth="200"/>
                 <ColumnDefinition Width="150"/>
                 <ColumnDefinition Width="85"/>
-                <ColumnDefinition Width="125"/>
+                <ColumnDefinition Width="155"/>
               </Grid.ColumnDefinitions>
               
                 <TextBlock Grid.Column="0" Text="Status" FontWeight="SemiBold" FontSize="12"/>
@@ -228,7 +228,7 @@
                         <ColumnDefinition Width="*" MinWidth="200"/>
                         <ColumnDefinition Width="150"/>
                         <ColumnDefinition Width="85"/>
-                        <ColumnDefinition Width="125"/>
+                        <ColumnDefinition Width="155"/>
                       </Grid.ColumnDefinitions>
 
                       <!-- Status Icon -->
@@ -251,10 +251,19 @@
                       </Panel>
 
                       <!-- Input File -->
-                      <TextBlock Grid.Column="1" Text="{Binding VideoInfo.FileName}" 
-                               VerticalAlignment="Center" Margin="5,0"
-                               TextTrimming="CharacterEllipsis"
-                               ToolTip.Tip="{Binding InputFilePath}"/>
+                      <Grid Grid.Column="1" Margin="5,0">
+                        <TextBlock Text="{Binding VideoInfo.FileName}" 
+                                 VerticalAlignment="Center"
+                                 TextTrimming="CharacterEllipsis"
+                                 ToolTip.Tip="{Binding InputFilePath}"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                          <PathIcon Data="M7,13V11H21V13H7M7,19V17H21V19H7M7,7V5H21V7H7M2,11H5.5L4,9.5L2,11M2,19H5.5L4,17.5L2,19M2,7H5.5L4,5.5L2,7Z" 
+                                  Width="12" Height="12" Foreground="#0078D4" 
+                                  ToolTip.Tip="{Binding Clips.Count, StringFormat='Has {0} segments defined'}"
+                                  IsVisible="{Binding HasSegments}"
+                                  Margin="0,0,5,0"/>
+                        </StackPanel>
+                      </Grid>
 
                       <!-- Duration -->
                       <TextBlock Grid.Column="2" Text="{Binding VideoInfo.Duration}" 
@@ -287,6 +296,14 @@
                       <!-- Actions -->
                       <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="3" 
                                 HorizontalAlignment="Center" Margin="5,0,10,0">
+                        <Button ToolTip.Tip="Edit video segments"
+                                Command="{Binding ((vm:MainWindowViewModel)DataContext).EditSegmentsCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}"
+                                Padding="4" MinWidth="32" Width="32"
+                                IsEnabled="{Binding CanEditVideo}">
+                          <PathIcon Data="M7,13V11H21V13H7M7,19V17H21V19H7M7,7V5H21V7H7M2,11H5.5L4,9.5L2,11M2,19H5.5L4,17.5L2,19M2,7H5.5L4,5.5L2,7Z" 
+                                  Width="14" Height="14"/>
+                        </Button>
                         <Button ToolTip.Tip="Open video file"
                                 Command="{Binding ((vm:MainWindowViewModel)DataContext).OpenVideoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 CommandParameter="{Binding}"

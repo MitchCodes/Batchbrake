@@ -18,6 +18,7 @@ using System.Collections.Specialized;
 using System.Threading;
 using System.Text.Json;
 using System.Reactive.Linq;
+using Avalonia.Controls.ApplicationLifetimes;
 
 namespace Batchbrake.ViewModels
 {
@@ -409,6 +410,28 @@ namespace Batchbrake.ViewModels
         // Command to open video
         public ReactiveCommand<VideoModelViewModel, Unit> OpenVideoFolderCommand => ReactiveCommand.Create<VideoModelViewModel>(OpenVideoFolder);
 
+        public async void EditSegments(VideoModelViewModel video)
+        {
+            // Find the main window
+            var mainWindow = Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+
+            var segmentEditor = new SegmentEditorWindow(video);
+            var result = await segmentEditor.ShowDialog<bool?>(mainWindow);
+            
+            if (result == true)
+            {
+                // Update the video display to show segments indicator
+                this.RaisePropertyChanged(nameof(VideoQueue));
+                // Auto-save session when segments are modified
+                _ = Task.Run(SaveSessionAsync);
+            }
+        }
+
+        // Command to edit video segments
+        public ReactiveCommand<VideoModelViewModel, Unit> EditSegmentsCommand => ReactiveCommand.Create<VideoModelViewModel>(EditSegments);
+
         // Pause Conversion Command
         public ReactiveCommand<Unit, Unit> PauseConversionCommand => ReactiveCommand.Create(() =>
         {
@@ -693,66 +716,79 @@ namespace Batchbrake.ViewModels
                     });
                 };
                 
-                // Choose conversion engine based on settings
+                // Check if video has segments defined
                 bool conversionResult;
-                if (_ffmpegSettings.UseAsConversionEngine)
+                if (video.Clips != null && video.Clips.Count > 0)
                 {
-                    // Use FFmpeg for conversion
-                    var ffmpegWrapper = new FFmpegWrapper(_ffmpegSettings);
-                    conversionResult = await ffmpegWrapper.ConvertVideoAsync(
-                        video.InputFilePath!,
-                        video.OutputFilePath!,
-                        progress => {
-                            RxApp.MainThreadScheduler.Schedule(() => {
-                                video.ConversionProgress = (int)progress;
-                            });
-                        },
-                        cancellationToken);
-                    
-                    // Handle FFmpeg completion
-                    if (conversionResult)
+                    // Process segments - always use HandBrake for segments
+                    RxApp.MainThreadScheduler.Schedule(() =>
                     {
-                        RxApp.MainThreadScheduler.Schedule(() =>
-                        {
-                            video.ConversionStatus = VideoConversionStatus.Completed;
-                            video.ConversionProgress = 100;
-                            video.EndTime = DateTime.Now;
-                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted {video.VideoInfo?.FileName} using FFmpeg\n";
-                            
-                            // Show completion notification if enabled
-                            if (Preferences.ShowCompletionNotifications)
-                            {
-                                ShowNotification($"Conversion Complete", $"Successfully converted {video.VideoInfo?.FileName}");
-                            }
-                            
-                            if (Preferences.DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
-                            {
-                                try
-                                {
-                                    File.Delete(video.InputFilePath);
-                                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Deleted source file {video.VideoInfo?.FileName}\n";
-                                }
-                                catch (Exception deleteEx)
-                                {
-                                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to delete source file: {deleteEx.Message}\n";
-                                }
-                            }
-                            
-                            // Auto-save session after successful FFmpeg conversion
-                            _ = Task.Run(SaveSessionAsync);
-                        });
-                    }
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Processing {video.Clips.Count} segments for {video.VideoInfo?.FileName}\n";
+                    });
+                    conversionResult = await ProcessVideoSegmentsAsync(video, handbrakeCliWrapper, cancellationToken);
                 }
                 else
                 {
-                    // Use HandBrake for conversion with custom settings applied
-                    var additionalArgs = handbrakeCliWrapper.GetAdditionalArgumentsFromSettings();
-                    conversionResult = await handbrakeCliWrapper.ConvertVideoAsync(
-                        video.InputFilePath!, 
-                        video.OutputFilePath!, 
-                        video.Preset,
-                        additionalArgs,
-                        cancellationToken);
+                    // Process entire video (original logic)
+                    if (_ffmpegSettings.UseAsConversionEngine)
+                    {
+                        // Use FFmpeg for conversion
+                        var ffmpegWrapper = new FFmpegWrapper(_ffmpegSettings);
+                        conversionResult = await ffmpegWrapper.ConvertVideoAsync(
+                            video.InputFilePath!,
+                            video.OutputFilePath!,
+                            progress => {
+                                RxApp.MainThreadScheduler.Schedule(() => {
+                                    video.ConversionProgress = (int)progress;
+                                });
+                            },
+                            cancellationToken);
+                        
+                        // Handle FFmpeg completion
+                        if (conversionResult)
+                        {
+                            RxApp.MainThreadScheduler.Schedule(() =>
+                            {
+                                video.ConversionStatus = VideoConversionStatus.Completed;
+                                video.ConversionProgress = 100;
+                                video.EndTime = DateTime.Now;
+                                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted {video.VideoInfo?.FileName} using FFmpeg\n";
+                                
+                                // Show completion notification if enabled
+                                if (Preferences.ShowCompletionNotifications)
+                                {
+                                    ShowNotification($"Conversion Complete", $"Successfully converted {video.VideoInfo?.FileName}");
+                                }
+                                
+                                if (Preferences.DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
+                                {
+                                    try
+                                    {
+                                        File.Delete(video.InputFilePath);
+                                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Deleted source file {video.VideoInfo?.FileName}\n";
+                                    }
+                                    catch (Exception deleteEx)
+                                    {
+                                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to delete source file: {deleteEx.Message}\n";
+                                    }
+                                }
+                                
+                                // Auto-save session after successful FFmpeg conversion
+                                _ = Task.Run(SaveSessionAsync);
+                            });
+                        }
+                    }
+                    else
+                    {
+                        // Use HandBrake for conversion with custom settings applied
+                        var additionalArgs = handbrakeCliWrapper.GetAdditionalArgumentsFromSettings();
+                        conversionResult = await handbrakeCliWrapper.ConvertVideoAsync(
+                            video.InputFilePath!, 
+                            video.OutputFilePath!, 
+                            video.Preset,
+                            additionalArgs,
+                            cancellationToken);
+                    }
                 }
 
                 if (!conversionResult)
@@ -789,6 +825,139 @@ namespace Batchbrake.ViewModels
                     _ = Task.Run(SaveSessionAsync);
                 });
             }
+        }
+
+        /// <summary>
+        /// Processes multiple video segments using HandBrake CLI
+        /// </summary>
+        private async Task<bool> ProcessVideoSegmentsAsync(VideoModelViewModel video, HandbrakeCLIWrapper handbrakeWrapper, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var totalSegments = video.Clips!.Count;
+                var successfulSegments = 0;
+                var additionalArgs = handbrakeWrapper.GetAdditionalArgumentsFromSettings();
+
+                for (int i = 0; i < totalSegments; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    
+                    var clip = video.Clips[i];
+                    var segmentOutputPath = GenerateSegmentOutputPath(video.OutputFilePath!, i + 1, totalSegments);
+
+                    RxApp.MainThreadScheduler.Schedule(() =>
+                    {
+                        var segmentNumber = i + 1;
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Converting segment {segmentNumber}/{totalSegments} ({clip.Start:hh\\:mm\\:ss} - {clip.End:hh\\:mm\\:ss})\n";
+                        
+                        // Update progress for this segment
+                        var baseProgress = (double)i / totalSegments * 100;
+                        video.ConversionProgress = baseProgress;
+                    });
+
+                    // Convert the segment using HandBrake's ConvertVideoClipAsync
+                    var segmentResult = await handbrakeWrapper.ConvertVideoClipAsync(
+                        video.InputFilePath!,
+                        segmentOutputPath,
+                        clip.Start,
+                        clip.End,
+                        video.Preset,
+                        additionalArgs,
+                        cancellationToken);
+
+                    if (segmentResult)
+                    {
+                        successfulSegments++;
+                        RxApp.MainThreadScheduler.Schedule(() =>
+                        {
+                            var segmentNumber = i + 1;
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted segment {segmentNumber}/{totalSegments}\n";
+                            
+                            // Update progress
+                            var progress = (double)(i + 1) / totalSegments * 100;
+                            video.ConversionProgress = progress;
+                        });
+                    }
+                    else
+                    {
+                        RxApp.MainThreadScheduler.Schedule(() =>
+                        {
+                            var segmentNumber = i + 1;
+                            LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to convert segment {segmentNumber}/{totalSegments}\n";
+                        });
+                    }
+                }
+
+                var allSucceeded = successfulSegments == totalSegments;
+                
+                // Handle completion
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    if (allSucceeded)
+                    {
+                        video.ConversionStatus = VideoConversionStatus.Completed;
+                        video.ConversionProgress = 100;
+                        video.EndTime = DateTime.Now;
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Successfully converted all {totalSegments} segments for {video.VideoInfo?.FileName}\n";
+                        
+                        // Show completion notification if enabled
+                        if (Preferences.ShowCompletionNotifications)
+                        {
+                            ShowNotification($"Segments Complete", $"Successfully converted {totalSegments} segments from {video.VideoInfo?.FileName}");
+                        }
+                        
+                        if (Preferences.DeleteSourceAfterConversion && File.Exists(video.InputFilePath))
+                        {
+                            try
+                            {
+                                File.Delete(video.InputFilePath);
+                                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Deleted source file {video.VideoInfo?.FileName}\n";
+                            }
+                            catch (Exception deleteEx)
+                            {
+                                LogOutput += $"[{DateTime.Now:HH:mm:ss}] Failed to delete source file: {deleteEx.Message}\n";
+                            }
+                        }
+                        
+                        // Auto-save session after successful conversion
+                        _ = Task.Run(SaveSessionAsync);
+                    }
+                    else
+                    {
+                        video.ConversionStatus = VideoConversionStatus.Failed;
+                        video.ErrorMessage = $"Only {successfulSegments} out of {totalSegments} segments converted successfully";
+                        LogOutput += $"[{DateTime.Now:HH:mm:ss}] Partial failure: {successfulSegments}/{totalSegments} segments converted for {video.VideoInfo?.FileName}\n";
+                        
+                        // Auto-save session after partial failure
+                        _ = Task.Run(SaveSessionAsync);
+                    }
+                });
+
+                return allSucceeded;
+            }
+            catch (Exception ex)
+            {
+                RxApp.MainThreadScheduler.Schedule(() =>
+                {
+                    LogOutput += $"[{DateTime.Now:HH:mm:ss}] Error processing segments for {video.VideoInfo?.FileName}: {ex.Message}\n";
+                });
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Generates output file path for a video segment
+        /// </summary>
+        private string GenerateSegmentOutputPath(string originalOutputPath, int segmentNumber, int totalSegments)
+        {
+            var directory = Path.GetDirectoryName(originalOutputPath);
+            var fileName = Path.GetFileNameWithoutExtension(originalOutputPath);
+            var extension = Path.GetExtension(originalOutputPath);
+            
+            // Format: filename_segment01.ext, filename_segment02.ext, etc.
+            var segmentFileName = $"{fileName}_segment{segmentNumber:D2}{extension}";
+            
+            return Path.Combine(directory!, segmentFileName);
         }
 
         // Auto-detect HandbrakeCLI
